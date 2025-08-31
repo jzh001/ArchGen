@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         wget ca-certificates fontconfig curl \
         texlive-latex-base texlive-latex-recommended texlive-pictures texlive-latex-extra \
         latexmk \
+        poppler-utils ghostscript imagemagick \
     && rm -rf /var/lib/apt/lists/*
 
 # Verify latex tools

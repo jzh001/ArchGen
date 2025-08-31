@@ -22,7 +22,7 @@ Hosted APIs (e.g., OpenAI, Anthropic, TogetherAI).
 
 Self-hosted/local models via Ollama.
 
-Generate diagrams in multiple export formats: PNG, PDF, SVG.
+Generate diagrams in multiple export formats: PNG, PDF, JPEG.
 
 Ensure compatibility with Hugging Face Spaces (Gradio + lightweight backend).
 
@@ -83,7 +83,7 @@ Provide "Regenerate with LLM" button to re-prompt the model if the diagram is un
 
 Rendered interactive preview in Gradio.
 
-Download options: PNG, PDF, SVG, TikZ.
+Download options: PNG, PDF, JPEG, TikZ.
 
 Style options:
 
@@ -163,6 +163,6 @@ Ollama dependency → Make optional, only enabled in local deployments.
 
 – Integrate LLM workflow (LangChain pipeline, OpenAI + Ollama).
 
-– Add export options (SVG, PDF, TikZ).
+– Add export options (PDF, JPEG, TikZ).
 
 – Deploy on Hugging Face Spaces + documentation + beta release.

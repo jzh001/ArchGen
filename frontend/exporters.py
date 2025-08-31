@@ -8,6 +8,7 @@ import os
 EXT_MAP = {
     "pdf": "pdf",
     "tex": "tikz",  # raw tikz/latex content saved with .tikz extension
+    "jpeg": "jpeg",
 }
 
 def save_outputs(outputs: Dict[str, bytes]) -> Dict[str, str]:

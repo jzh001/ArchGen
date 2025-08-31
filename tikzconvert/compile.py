@@ -1,20 +1,16 @@
-"""Utilities to compile TikZ/LaTeX into PDF & SVG.
+"""Utilities to compile TikZ/LaTeX into PDF (& optional JPEG raster).
 
-We try to be resilient: if LaTeX toolchain not installed, we still return the
-raw TikZ source under key 'tikz' and skip others.
+Resilient conversion: if LaTeX toolchain isn't present we still return only the
+raw TikZ source (key 'tikz'). If PDF compiles, we can optionally derive a JPEG
+preview using whatever external converter happens to be installed.
 
 Strategy (progressive enhancement):
-1. Normalize input into a full LaTeX document (standalone class) if needed.
-2. Write to temp directory main.tex
-3. Prefer `tectonic` (single self-contained engine) if available for PDF.
-4. Else try `latexmk` -> PDF, else 2x `pdflatex`.
-5. For SVG try (in order):
-    a. `dvisvgm` (requires producing DVI via `latex`)
-    b. `pdf2svg` (PDF -> SVG)
-    c. `pdftocairo -svg` (poppler)
-6. Gracefully fall back to only raw TikZ if none succeed.
-
-Given deployment constraints (HF Spaces CPU), absence of toolchain is common; we degrade gracefully.
+1. Normalize input into a full LaTeX standalone document if needed.
+2. Write `main.tex` in a temporary directory.
+3. Attempt PDF via (in order) `tectonic`, `latexmk`, `pdflatex`.
+4. If JPEG requested, attempt (in order) `pdftoppm -jpeg`, `pdftocairo -jpeg`,
+   ImageMagick (`magick` / `convert`), Ghostscript (`gs`). First success wins.
+5. Gracefully fall back; never raise unless an unexpected internal error occurs.
 """
 from __future__ import annotations
 
@@ -77,37 +73,57 @@ def _compile_pdf(td: str) -> Tuple[bool, str, bytes]:
             return True, pdf_path, log_all
     return False, pdf_path, log_all
 
-def _produce_svg_from_pdf(td: str, pdf_path: str) -> Tuple[bool, bytes]:
-    svg_candidate = os.path.join(td, "main.svg")
-    # dvisvgm path (needs latex -> dvi)
-    if _which("dvisvgm") and _which("latex"):
-        ok_latex, _ = _run(["latex", "-interaction=nonstopmode", "main.tex"], td)
-        dvi_path = os.path.join(td, "main.dvi")
-        if ok_latex and os.path.exists(dvi_path):
-            ok_svg, _ = _run(["dvisvgm", "main.dvi", "-n", "-o", "main.svg"], td)
-            if ok_svg and os.path.exists(svg_candidate):
-                return True, open(svg_candidate, "rb").read()
-    # pdf2svg
-    if _which("pdf2svg"):
-        ok, _ = _run(["pdf2svg", pdf_path, svg_candidate], td)
-        if ok and os.path.exists(svg_candidate):
-            return True, open(svg_candidate, "rb").read()
-    # pdftocairo
-    if _which("pdftocairo"):
-        ok, _ = _run(["pdftocairo", "-svg", pdf_path, svg_candidate], td)
-        # pdftocairo may append -1.svg
-        if not os.path.exists(svg_candidate):
-            alt = os.path.join(td, "main-1.svg")
-            if os.path.exists(alt):
-                svg_candidate = alt
-        if ok and os.path.exists(svg_candidate):
-            return True, open(svg_candidate, "rb").read()
-    return False, b''
+def _produce_jpeg_from_pdf(td: str, pdf_path: str) -> Tuple[bool, bytes]:
+    """Try to rasterize first page of the PDF into a JPEG.
 
-def tikz_to_formats(tikz_source: str, formats: Iterable[str] = ("tikz", "pdf", "svg")) -> Dict[str, bytes]:
+    We intentionally avoid adding Python deps; rely on common CLI tools.
+    Returns (ok, bytes).
+    """
+    # 1. pdftoppm (poppler)
+    if _which("pdftoppm"):
+        # Limit to first page to avoid accidental multi-page output
+        ok, _ = _run(["pdftoppm", "-jpeg", "-f", "1", "-l", "1", pdf_path, "main"], td)
+        if ok:
+            # pdftoppm writes main-1.jpg (unless singlefile option available)
+            cand = os.path.join(td, "main.jpg")
+            if not os.path.exists(cand):
+                cand = os.path.join(td, "main-1.jpg")
+            if os.path.exists(cand):
+                return True, open(cand, "rb").read()
+    # 2. pdftocairo
+    if _which("pdftocairo"):
+        # pdftocairo outputs main-1.jpg for first page unless -singlefile present
+        ok, _ = _run(["pdftocairo", "-jpeg", pdf_path, "main"], td)
+        if ok:
+            cand = os.path.join(td, "main.jpg")
+            if not os.path.exists(cand):
+                cand = os.path.join(td, "main-1.jpg")
+            if os.path.exists(cand):
+                return True, open(cand, "rb").read()
+    # 3. ImageMagick
+    if _which("magick") or _which("convert"):
+        tool = "magick" if _which("magick") else "convert"
+        ok, _ = _run([tool, "-density", "200", pdf_path, "-quality", "90", "main.jpg"], td)
+        if ok:
+            cand = os.path.join(td, "main.jpg")
+            if os.path.exists(cand):
+                return True, open(cand, "rb").read()
+    # 4. Ghostscript
+    if _which("gs"):
+        ok, _ = _run([
+            "gs", "-sDEVICE=jpeg", "-dBATCH", "-dNOPAUSE", "-dSAFER", "-r200",
+            "-sOutputFile=main.jpg", pdf_path
+        ], td)
+        if ok:
+            cand = os.path.join(td, "main.jpg")
+            if os.path.exists(cand):
+                return True, open(cand, "rb").read()
+    return False, b""
+
+def tikz_to_formats(tikz_source: str, formats: Iterable[str] = ("tikz", "pdf")) -> Dict[str, bytes]:
     wanted = list(dict.fromkeys(formats))  # preserve order unique
     outputs: Dict[str, bytes] = {"tikz": tikz_source.encode("utf-8")}
-    need_pdf = any(f in ("pdf", "svg") for f in wanted)
+    need_pdf = any(f in ("pdf", "jpeg") for f in wanted)
     if not need_pdf:
         return {k: v for k, v in outputs.items() if k in wanted}
 
@@ -119,10 +135,10 @@ def tikz_to_formats(tikz_source: str, formats: Iterable[str] = ("tikz", "pdf", "
         if ok_pdf and os.path.exists(pdf_path):
             if "pdf" in wanted:
                 outputs["pdf"] = open(pdf_path, "rb").read()
-            if "svg" in wanted:
-                ok_svg, svg_bytes = _produce_svg_from_pdf(td, pdf_path)
-                if ok_svg:
-                    outputs["svg"] = svg_bytes
+            if "jpeg" in wanted:
+                ok_jpeg, jpeg_bytes = _produce_jpeg_from_pdf(td, pdf_path)
+                if ok_jpeg:
+                    outputs["jpeg"] = jpeg_bytes
         # else fall back silently
 
     return {k: v for k, v in outputs.items() if k in wanted}

@@ -33,11 +33,10 @@ def build_interface():
         status = gr.Markdown(visible=False)
         with gr.Row():
             generate_btn = gr.Button("Generate", variant="primary")
-        pdf_viewer = gr.HTML(label="PDF Preview")
-        download_files = gr.File(label="Downloads (PDF/TikZ)", file_count="multiple")
+        pdf_viewer = gr.HTML(label="Preview (JPEG if available else PDF/TikZ)")
+        download_files = gr.File(label="Downloads (JPEG/PDF/TikZ)", file_count="multiple")
 
         def _ensure_code(preset_choice, current_code):
-            # Replace editor content only when a valid preset is picked; preserves user edits otherwise.
             return PRESETS[preset_choice] if preset_choice and PRESETS.get(preset_choice) else current_code
 
         def generate(preset_choice, code_text, provider_choice):
@@ -45,10 +44,9 @@ def build_interface():
             graph_ir = parse_pytorch_code_to_graph(code_text)
             env_var = ENV_KEY_MAP.get(provider_choice)
             api_key = os.getenv(env_var) if env_var else None
-            outputs = render_graph(graph_ir)
+            outputs = render_graph(graph_ir, want_jpeg=True)
             paths = save_outputs(outputs)
-            pdf_path = paths.get("pdf") or paths.get("tex")  # fallback to tikz file if pdf missing
-            downloads = [p for k, p in paths.items() if k in ("pdf", "tex")]
+            downloads = [p for k, p in paths.items() if k in ("jpeg", "pdf", "tex")]
             elapsed = time.time() - t0
             status_text = (
                 f"Generated {graph_ir.get('meta', {}).get('detected_module', 'model')} "
@@ -57,8 +55,20 @@ def build_interface():
             )
             if "pdf" not in outputs:
                 status_text += " — PDF compilation unavailable (install tectonic or pdflatex)."
-            # Build inline PDF (or TikZ text fallback) preview HTML
-            if paths.get("pdf") and os.path.exists(paths["pdf"]):
+            if paths.get("jpeg") and os.path.exists(paths["jpeg"]):
+                try:
+                    with open(paths["jpeg"], "rb") as f:
+                        b64 = base64.b64encode(f.read()).decode()
+                    html_preview = (
+                        '<div style="text-align:center;">'
+                        f'<img src="data:image/jpeg;base64,{b64}" '
+                        'style="max-width:90%;height:auto;border:1px solid #ccc;display:inline-block;" '
+                        'alt="Diagram preview" />'
+                        '</div>'
+                    )
+                except Exception:
+                    html_preview = "<p>Failed to load JPEG preview.</p>"
+            elif paths.get("pdf") and os.path.exists(paths["pdf"]):
                 try:
                     with open(paths["pdf"], "rb") as f:
                         b64 = base64.b64encode(f.read()).decode()
@@ -66,7 +76,6 @@ def build_interface():
                 except Exception:
                     html_preview = "<p>Failed to load PDF preview.</p>"
             else:
-                # Show TikZ content if PDF absent
                 if paths.get("tex") and os.path.exists(paths["tex"]):
                     try:
                         with open(paths["tex"], "r", encoding="utf-8", errors="ignore") as f:
