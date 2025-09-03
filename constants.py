@@ -1,2 +1,2 @@
-CRITERIA_PROMPT_PATH = 'prompts/criteria.txt'
+RUBRICS_PROMPT_PATH = 'prompts/rubrics.txt'
 GENERATOR_PROMPT_PATH = 'prompts/generator.txt'

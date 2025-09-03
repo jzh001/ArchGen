@@ -1,0 +1,12 @@
+1. Visuals
+    - Diagram must be visually appealing.
+    - All text should be visible and clear.
+    - Shapes must be complete. Do not include partially created shapes, or partially shaded objects.
+    - Diagram should fit within 2 columns in a LaTeX document.
+    - There should be no overlapping text or shapes.
+2. Accuracy
+    - Diagram must follow the logic of the code provided as closely as possible. You may provide high level summaries if the model architecture is very complex, but it must remain accurate.
+    - Diagram should present sufficient detail
+3. Formatting
+    - Ensure that the full TikZ code is generated, which includes begin and end document tags
+    - Import all required packages

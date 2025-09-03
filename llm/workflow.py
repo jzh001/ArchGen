@@ -1,11 +1,11 @@
 from .agent import Agent
 from .schema import TikZResponseFormatter
-from constants import CRITERIA_PROMPT_PATH, GENERATOR_PROMPT_PATH
+from constants import RUBRICS_PROMPT_PATH, GENERATOR_PROMPT_PATH
 
 def run(input_code):
-    with open(CRITERIA_PROMPT_PATH, 'r') as f:
-        criteria = f.read()
-    agent = Agent(GENERATOR_PROMPT_PATH, schema=TikZResponseFormatter, code=input_code, criteria=criteria)
+    with open(RUBRICS_PROMPT_PATH, 'r') as f:
+        rubrics = f.read()
+    agent = Agent(GENERATOR_PROMPT_PATH, schema=TikZResponseFormatter, code=input_code, rubrics=rubrics)
     tikz_code = agent.invoke("Generate the TikZ code for the diagram.")
     return tikz_code
 #     return r"""
