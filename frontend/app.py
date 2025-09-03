@@ -5,7 +5,6 @@ import gradio as gr
 import os
 import base64
 from dotenv import load_dotenv
-from .parsing import parse_pytorch_code_to_graph
 from .diagram import render_graph
 from .exporters import save_outputs
 from .presets import PRESETS
@@ -41,18 +40,13 @@ def build_interface():
 
         def generate(preset_choice, code_text, provider_choice):
             t0 = time.time()
-            graph_ir = parse_pytorch_code_to_graph(code_text)
             env_var = ENV_KEY_MAP.get(provider_choice)
             api_key = os.getenv(env_var) if env_var else None
-            outputs = render_graph(graph_ir, want_jpeg=True)
+            outputs = render_graph(code_text, want_jpeg=True)
             paths = save_outputs(outputs)
             downloads = [p for k, p in paths.items() if k in ("jpeg", "pdf", "tex")]
             elapsed = time.time() - t0
-            status_text = (
-                f"Generated {graph_ir.get('meta', {}).get('detected_module', 'model')} "
-                f"with {len(graph_ir.get('nodes', []))} nodes in {elapsed:.2f}s." +
-                (" (LLM hints)" if provider_choice != "None" and api_key else "")
-            )
+            status_text = "Generation Complete\n"
             if "pdf" not in outputs:
                 status_text += " — PDF compilation unavailable (install tectonic or pdflatex)."
             if paths.get("jpeg") and os.path.exists(paths["jpeg"]):

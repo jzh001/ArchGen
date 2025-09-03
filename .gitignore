@@ -1,0 +1,77 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# Virtual environments
+env/
+venv/
+.venv/
+ENV/
+VENV/
+**/env/
+**/venv/
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+.tox/
+.pytest_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# IDEs and editors
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment variable files
+.env
+.env.*
+
+# Logs
+*.log
+
+# Docker
+docker-compose.override.yml
+
+# Ignore compiled TeX / build artifacts (if any)
+*.aux
+*.out
+*.toc
+
+# Optional: prevent accidentally committing large files
+#*.sqlite3
+#*.db
+
+# Node modules (uncomment if you add a JS frontend)
+# node_modules/
+
+# Frontend build artifacts (if frontend becomes a separate JS project)
+# frontend/dist/**/.env

@@ -6,17 +6,17 @@ return a JPEG raster (first page) if caller requests and conversion tools are pr
 from __future__ import annotations
 
 from typing import Dict, Any
-from llm.workflow import run as llm_workflow  # placeholder LLM producing TikZ
+from llm.workflow import run as llm_workflow
 from tikzconvert import tikz_to_formats
 
-def render_graph(graph_ir: Dict[str, Any], want_jpeg: bool = False) -> Dict[str, bytes]:
+def render_graph(input_code, want_jpeg: bool = False) -> Dict[str, bytes]:
     """Render TikZ -> PDF (+ optional JPEG) and raw TeX.
 
     Returns keys: tex (always), pdf (if compiled), jpeg (if requested & succeeded).
     """
     outputs: Dict[str, bytes] = {}
     try:
-        tikz_doc = llm_workflow()
+        tikz_doc = llm_workflow(input_code=input_code)
     except Exception:
         tikz_doc = "% TikZ generation failed"
     try:
