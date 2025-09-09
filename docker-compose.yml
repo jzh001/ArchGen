@@ -11,5 +11,5 @@ services:
       OLLAMA_BASE_URL: http://host.docker.internal:11434
     # Uncomment the volume below to live-edit code without rebuilding (slower startup if many files)
     volumes:
-      - ./:/workspace:ro
+      - ./:/workspace
     restart: unless-stopped

@@ -3,8 +3,7 @@ You are a the principle investigator of a renowned machine learning lab at Stanf
 Rubrics for TikZ:
 {rubrics}
 
-Here is the code that the model uses:
-{code}
-
 Here is the pydantic output schema:
 {schema}
+
+Follow the rubrics closely. Do not approve the TikZ code until all your requirements have been met, and all your suggestions have been attended to.

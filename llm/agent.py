@@ -26,4 +26,6 @@ class Agent:
             print("LLM invocation failed:", e)
             raise e
 
+        self.messages.append({"role": "assistant", "content": ai_msg})
+
         return ai_msg

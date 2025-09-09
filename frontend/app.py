@@ -19,7 +19,7 @@ def build_interface():
         gr.Markdown("# ArchGen\nPaste or select a PyTorch nn.Module to generate an architecture diagram.")
         with gr.Row():
             preset = gr.Dropdown(choices=list(PRESETS.keys()), value="SimpleMLP", label="Preset Model")
-            provider = gr.Dropdown(choices=LLM_OPTIONS, value="Ollama", label="LLM Provider")
+            provider = gr.Dropdown(choices=LLM_OPTIONS, value=LLM_OPTIONS[0], label="LLM Provider")
         code = gr.Code(label="PyTorch nn.Module code", language="python", value=PRESETS["SimpleMLP"])
         status = gr.Markdown(visible=False)
         with gr.Row():

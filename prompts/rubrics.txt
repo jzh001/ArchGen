@@ -4,6 +4,7 @@
     - Shapes must be complete. Do not include partially created shapes, or partially shaded objects.
     - Diagram should fit within 2 columns in a LaTeX document.
     - There should be no overlapping text or shapes.
+    - Do not leave too much white space around the figure after PDF compilation.
 2. Accuracy
     - Diagram must follow the logic of the code provided as closely as possible. You may provide high level summaries if the model architecture is very complex, but it must remain accurate.
     - Diagram should present sufficient detail
