@@ -6,3 +6,5 @@ Rubrics for TikZ:
 Here is the code that the model uses:
 {code}
 
+Here is the pydantic output schema:
+{schema}
