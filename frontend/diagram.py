@@ -9,14 +9,14 @@ from typing import Dict, Any
 from llm.workflow import run as llm_workflow
 from tikzconvert import tikz_to_formats
 
-def render_graph(input_code, want_jpeg: bool = False) -> Dict[str, bytes]:
+def render_graph(input_code, provider_choice, want_jpeg: bool = False) -> Dict[str, bytes]:
     """Render TikZ -> PDF (+ optional JPEG) and raw TeX.
 
     Returns keys: tex (always), pdf (if compiled), jpeg (if requested & succeeded).
     """
     outputs: Dict[str, bytes] = {}
     try:
-        tikz_doc = llm_workflow(input_code=input_code)
+        tikz_doc = llm_workflow(input_code=input_code, provider_choice=provider_choice)
     except Exception:
         tikz_doc = "% TikZ generation failed"
     try:

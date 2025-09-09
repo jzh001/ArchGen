@@ -9,17 +9,9 @@ from .diagram import render_graph
 from .exporters import save_outputs
 from .presets import PRESETS
 import time
+from constants import LLM_OPTIONS
 
-
-load_dotenv()  # Load environment variables from .env if present
-
-
-ENV_KEY_MAP = {
-    "OpenAI": "OPENAI_API_KEY",
-    "Anthropic": "ANTHROPIC_API_KEY",
-    "HuggingFace": "HUGGINGFACEHUB_API_TOKEN",
-    "Ollama": None,  # usually local, no key required
-}
+load_dotenv()  # Load environment variables from .env file if present
 
 
 def build_interface():
@@ -27,7 +19,7 @@ def build_interface():
         gr.Markdown("# ArchGen\nPaste or select a PyTorch nn.Module to generate an architecture diagram.")
         with gr.Row():
             preset = gr.Dropdown(choices=list(PRESETS.keys()), value="SimpleMLP", label="Preset Model")
-            provider = gr.Dropdown(choices=["None", "OpenAI", "Anthropic", "HuggingFace", "Ollama"], value="Ollama", label="LLM Provider")
+            provider = gr.Dropdown(choices=LLM_OPTIONS, value="Ollama", label="LLM Provider")
         code = gr.Code(label="PyTorch nn.Module code", language="python", value=PRESETS["SimpleMLP"])
         status = gr.Markdown(visible=False)
         with gr.Row():
@@ -39,13 +31,9 @@ def build_interface():
             return PRESETS[preset_choice] if preset_choice and PRESETS.get(preset_choice) else current_code
 
         def generate(preset_choice, code_text, provider_choice):
-            t0 = time.time()
-            env_var = ENV_KEY_MAP.get(provider_choice)
-            api_key = os.getenv(env_var) if env_var else None
-            outputs = render_graph(code_text, want_jpeg=True)
+            outputs = render_graph(code_text, provider_choice, want_jpeg=True)
             paths = save_outputs(outputs)
             downloads = [p for k, p in paths.items() if k in ("jpeg", "pdf", "tex")]
-            elapsed = time.time() - t0
             status_text = "Generation Complete\n"
             if "pdf" not in outputs:
                 status_text += " — PDF compilation unavailable (install tectonic or pdflatex)."

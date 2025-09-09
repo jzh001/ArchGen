@@ -5,3 +5,8 @@ Rubrics for TikZ:
 
 Here is the code that your model uses:
 {code}
+
+Here is my pydantic schema:
+{schema}
+
+Output only the JSON with the specified fields. Do not include any extra text or explanation. The output must be valid JSON.
