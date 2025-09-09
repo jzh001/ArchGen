@@ -1,33 +1,126 @@
 from .agent import Agent
 from .schema import TikZResponseFormatter, CritiqueResponseFormatter
 from constants import RUBRICS_PROMPT_PATH, GENERATOR_PROMPT_PATH, CRITIC_PROMPT_PATH, MAX_ITER
-import json, re, ast
+from tikzconvert.compile import tikz_to_formats
+import json, re, ast, base64
 
 def run(input_code: str, provider_choice: str) -> str:
+    """Run the generator-critic loop with rendering and self-approval.
+
+    Process:
+    - Generator produces TikZ (schema: TikZResponseFormatter).
+    - We attempt to compile to JPEG. If it fails, feed this back to the generator to fix.
+    - If it compiles, we ask the generator to self-assess the rendered image (schema: CritiqueResponseFormatter),
+      reworking until the generator sets approval=true.
+    - Then we pass the final JPEG (base64) to the critic for an external critique. If the critic rejects, we
+      feed back the critique to the generator and continue.
+
+    We dynamically extend MAX_ITER locally to keep looping until success (with a reasonable safety bound).
+    """
     with open(RUBRICS_PROMPT_PATH, 'r') as f:
         rubrics = f.read()
-    approval = False
+
     tikz_code = ""
+    jpeg_b64 = ""
     iteration = 0
-    msg_to_generator = f"Here is the code: {input_code}\nGenerate the TikZ code for the diagram."
-    while not approval and iteration < MAX_ITER:
+    max_iter = MAX_ITER  # will be increased whenever we need more attempts
+
+    # Initial ask to the generator
+    msg_to_generator = (
+        f"Here is the code to depict:\n{input_code}\n\n"
+        "Generate the TikZ code for the diagram. Output only the JSON as per the schema."
+    )
+
+    # Hard safety ceiling to avoid truly infinite loops in pathological cases
+    safety_ceiling = MAX_ITER + 25
+    generator_agent = Agent(
+        GENERATOR_PROMPT_PATH,
+        schema=TikZResponseFormatter,
+        rubrics=rubrics,
+        provider_choice=provider_choice,
+    )
+
+    critic_agent = Agent(
+        CRITIC_PROMPT_PATH,
+        schema=CritiqueResponseFormatter,
+        rubrics=rubrics,
+        provider_choice=provider_choice,
+    )
+
+    while iteration < max_iter and iteration < safety_ceiling:
         iteration += 1
-        generator_agent = Agent(GENERATOR_PROMPT_PATH, schema=TikZResponseFormatter, rubrics=rubrics, provider_choice=provider_choice)
-        ai_msg = generator_agent.invoke(msg_to_generator)
-        print("[Generator]", ai_msg)
-        tikz_code = extract_dict_from_json(ai_msg).get("tikz_code", "Error: No TikZ code found.")
 
-        critic_agent = Agent(CRITIC_PROMPT_PATH, schema=CritiqueResponseFormatter, rubrics=rubrics, provider_choice=provider_choice)
-        ai_msg = critic_agent.invoke(f"Here is the TikZ code: {tikz_code}\nProvide a critique of the code.")
-        critique = extract_dict_from_json(ai_msg).get("critique", "Error: No critique found.")
-        suggestions = extract_dict_from_json(ai_msg).get("suggestions", "Error: No suggestions found.")
-        approval = extract_dict_from_json(ai_msg).get("approval", False)
-
-        print("[Critic]", ai_msg)
+        # 1) Ask generator to produce TikZ
         
-        if not approval:
-            msg_to_generator = f"{input_code}\nCritique: {critique}\nSuggestions: {suggestions}\nPlease improve the TikZ code based on the critique and suggestions."
+        ai_msg = generator_agent.invoke(msg_to_generator, image=jpeg_b64 if jpeg_b64 else None)
+        print("[Generator]", ai_msg)
+        resp = extract_dict_from_json(ai_msg)
+        tikz_code = resp.get("tikz_code", "")
 
+        if not tikz_code:
+            # No code produced—ask for a retry with explicit notice
+            msg_to_generator = (
+                f"The previous response did not include 'tikz_code'. Please return valid JSON with a 'tikz_code' field.\n\n"
+                f"Original input to depict:\n{input_code}"
+            )
+            max_iter += 1
+            continue
+
+        # 2) Try compiling to JPEG
+        outputs = {}
+        try:
+            outputs = tikz_to_formats(tikz_code, formats=("jpeg", "tikz"))
+        except Exception as e:
+            print("TikZ compile raised an exception:", e)
+
+        if "jpeg" not in outputs:
+            # Compilation failed; ask generator to fix LaTeX/TikZ issues.
+            msg_to_generator = (
+                "The TikZ code failed to compile into a JPEG. Please correct any LaTeX/TikZ errors and return a new 'tikz_code'.\n"
+                "Focus on syntactic correctness first (missing packages, unmatched braces, environments, math delimiters).\n\n"
+                f"Here was your last 'tikz_code':\n{tikz_code}\n"
+            )
+            max_iter += 1
+            continue
+
+        # 3) We have a JPEG; convert to base64 for passing to LLMs
+        jpeg_bytes = outputs.get("jpeg", b"")
+        jpeg_b64 = base64.b64encode(jpeg_bytes).decode("ascii") if jpeg_bytes else ""
+        if not jpeg_b64:
+            # Unexpected; treat as compile failure
+            msg_to_generator = (
+                "Received no JPEG bytes after compilation. Please adjust the TikZ code for successful rendering and re-submit.\n\n"
+                f"Last 'tikz_code':\n{tikz_code}\n"
+            )
+            max_iter += 1
+            continue
+
+        # 4) Ask external Critic (with the final image)
+        critic_prompt = (
+            "The final rendered diagram will be provided as a base64 JPEG (separate attachment) with its TikZ source.\n"
+            "Provide critique and suggestions. Approve only if it fully meets the rubrics.\n\n"
+            "TikZ code:\n"
+            f"{tikz_code}"
+        )
+        ai_msg = critic_agent.invoke(critic_prompt, image=jpeg_b64)
+        print("[Critic]", ai_msg)
+        cr = extract_dict_from_json(ai_msg)
+        final_approval = bool(cr.get("approval", False))
+        if final_approval:
+            return tikz_code
+
+        # If critic rejected, loop back with critic feedback
+        critique = cr.get("critique", "")
+        suggestions = cr.get("suggestions", "")
+        msg_to_generator = (
+            f"External critic feedback indicates issues remain.\n"
+            f"Critique: {critique}\n"
+            f"Suggestions: {suggestions}\n\n"
+            "Please revise and return a new 'tikz_code' (valid JSON only) that addresses all points."
+        )
+        max_iter += 1
+
+    # If we exit the loop without approval, return the last TikZ (best effort)
     return tikz_code
 
 def extract_dict_from_json(ai_msg: str) -> dict:
