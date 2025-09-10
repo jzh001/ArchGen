@@ -3,8 +3,14 @@ You are a the principle investigator of a renowned machine learning lab at Stanf
 Rubrics for TikZ:
 {rubrics}
 
-Here is the pydantic object that defines the JSON schema:
-{schema}
+JSON Output format:
+{{
+    "critique": str,
+    "suggestions": str,
+    "approval": bool
+}}
 
 Follow the rubrics closely. Do not approve the TikZ code until all your requirements have been met, and all your suggestions have been attended to.
-Output only the JSON with the specified fields, with the proper variable types. Do not include any extra text or explanation. The output must be valid JSON.
+Output only the JSON with the specified fields, with the proper variable types. Do not include any extra text or explanation. The output must be valid JSON which can be loaded using json.loads(msg) in Python.
+
+If you are satisfied with the TikZ, set approval to True, if not set to False.

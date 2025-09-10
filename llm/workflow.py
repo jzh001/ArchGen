@@ -1,5 +1,4 @@
 from llm.agent import Agent
-from llm.schema import TikZResponseFormatter, CritiqueResponseFormatter
 from constants import RUBRICS_PROMPT_PATH, GENERATOR_PROMPT_PATH, CRITIC_PROMPT_PATH, MAX_ITER
 from tikzconvert.compile import tikz_to_formats
 import json, re, ast, base64, shutil
@@ -8,9 +7,9 @@ def run(input_code: str, provider_choice: str) -> str:
     """Run the generator-critic loop with rendering and self-approval.
 
     Process:
-    - Generator produces TikZ (schema: TikZResponseFormatter).
+    - Generator produces TikZ.
     - We attempt to compile to JPEG. If it fails, feed this back to the generator to fix.
-    - If it compiles, we ask the generator to self-assess the rendered image (schema: CritiqueResponseFormatter),
+    - If it compiles, we ask the generator to self-assess the rendered image,
       reworking until the generator sets approval=true.
     - Then we pass the final JPEG (base64) to the critic for an external critique. If the critic rejects, we
       feed back the critique to the generator and continue.
@@ -35,14 +34,12 @@ def run(input_code: str, provider_choice: str) -> str:
     safety_ceiling = MAX_ITER + 25
     generator_agent = Agent(
         GENERATOR_PROMPT_PATH,
-        schema=TikZResponseFormatter,
         rubrics=rubrics,
         provider_choice=provider_choice,
     )
 
     critic_agent = Agent(
         CRITIC_PROMPT_PATH,
-        schema=CritiqueResponseFormatter,
         rubrics=rubrics,
         provider_choice=provider_choice,
     )
@@ -121,9 +118,11 @@ def run(input_code: str, provider_choice: str) -> str:
         # 4) Ask external Critic (with the final image)
         critic_prompt = (
             "The final rendered diagram will be provided as a base64 JPEG (separate attachment) with its TikZ source.\n"
-            "Provide critique and suggestions. Approve only if it fully meets the rubrics.\n\n"
+            "Provide critique and suggestions of the TikZ code. Approve only if it fully meets the rubrics.\n\n"
             "TikZ code:\n"
-            f"{tikz_code}"
+            f"{tikz_code}\n"
+            "Original input code:\n"
+            f"{input_code}\n"
         )
         ai_msg = critic_agent.invoke(critic_prompt, image=jpeg_b64)
         print("[Critic]", ai_msg)
@@ -136,7 +135,7 @@ def run(input_code: str, provider_choice: str) -> str:
         critique = cr.get("critique", "")
         suggestions = cr.get("suggestions", "")
         msg_to_generator = (
-            f"External critic feedback indicates issues remain.\n"
+            f"External critic feedback indicates issues remain. You are provided with the image generated.\n"
             f"Critique: {critique}\n"
             f"Suggestions: {suggestions}\n\n"
             "Please revise and return a new 'tikz_code' (valid JSON only) that addresses all points."

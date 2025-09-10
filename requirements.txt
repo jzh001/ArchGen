@@ -4,6 +4,7 @@ torch>=2.0.0
 torchvision>=0.15.0
 pydantic>=2.5.0
 langchain[openai,anthropic,ollama]>=0.2.0
+langchain-google-genai>=0.1.0
 langgraph>=0.1.0
 langchain-tavily>=0.1.0
 langgraph-checkpoint-sqlite>=0.1.0
