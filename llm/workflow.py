@@ -161,6 +161,18 @@ def extract_dict_from_json(ai_msg: str) -> dict:
     if not ai_msg:
         return {}
 
+    # Preprocess the input to normalize multiline strings, unescape quotes, and ensure valid JSON structure
+    def normalize_json_input(input_str):
+        # Remove newlines within JSON strings
+        normalized = re.sub(r'(?<!\\)\n', ' ', input_str)
+        # Replace escaped quotes with regular quotes
+        normalized = normalized.replace('\\"', '"')
+        # Remove extraneous whitespace
+        normalized = re.sub(r'\s+', ' ', normalized)
+        return normalized.strip()
+
+    ai_msg = normalize_json_input(ai_msg)
+
     # 1) direct parse
     try:
         return json.loads(ai_msg)

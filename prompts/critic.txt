@@ -15,5 +15,5 @@ Required JSON schema:
 }}
 
 Guidance:
-- Only set approval to true if the diagram fully satisfies the rubrics; otherwise false with concrete, actionable suggestions.
+- Only set approval to true if the diagram fully satisfies the rubrics and you have no further suggestions; otherwise false with concrete, actionable suggestions.
 - Return ONLY the JSON object described above.

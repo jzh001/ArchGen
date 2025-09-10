@@ -3,8 +3,8 @@
     - All text should be visible and clear (i.e. sufficient contrast for text on color, if any)
     - Shapes must be complete. Do not include partially created shapes, or partially shaded objects.
     - Diagram should fit within 2 columns in a LaTeX document and be reasonably rectangular (not narrow strips)
-    - There should be no overlapping text or shapes.
-    - The diagram and text should be completely contained within the figure. No part of the diagram or text should be cropped for the final image.
+    - There should be no overlapping text or shapes. Text should not overflow any containers.
+    - The diagram and text should be completely contained within the page. Failure of this point is an automatic fail for the proposed TikZ code.
     - Do not leave too much white space around the figure after PDF compilation.
     - Place priority on evaluating images if provided, over the TikZ code.
 2. Accuracy
