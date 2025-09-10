@@ -6,7 +6,7 @@ tags:
     - space
     - architecture
     - visualization
-sdk: gradio
+sdk: docker
 sdk_version: "4.36.0"
 app_file: frontend/app.py
 pinned: false

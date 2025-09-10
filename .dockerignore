@@ -1,1 +1,15 @@
-__pycache__/\n*.pyc\n*.pyo\n*.pyd\n*.log\n.env\n.git\n.gitignore\n.dist-info/\n.build/\n.eggs/\n*.egg-info/\n.cache/\n.idea/\n.vscode/\n
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+.env
+.git
+.gitignore
+.dist-info/
+.build/
+.eggs/
+*.egg-info/
+.cache/
+.idea/
+.vscode/

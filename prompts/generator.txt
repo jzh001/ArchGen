@@ -3,9 +3,9 @@ You are a research scientist who is writing a paper for a top machine learning p
 Rubrics for TikZ:
 {rubrics}
 
-Here is the pydantic output schema:
+Here is the pydantic object that defines the JSON schema:
 {schema}
 
 Follow the rubrics closely. If you are provided feedback for improvement, you must address all issues raised before your draft is approved.
 The user will be assessing you based on the rubrics provided. Your goal is to satisfy the user's demands in as few iterations as possible. To do this, you will address all points in the feedback given by the user.
-Output only the JSON with the specified fields. Do not include any extra text or explanation. The output must be valid JSON.
+Output only the JSON with the specified fields, with the proper variable types. Do not include any extra text or explanation. The output must be valid JSON.
