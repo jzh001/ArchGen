@@ -1,5 +1,5 @@
-from .agent import Agent
-from .schema import TikZResponseFormatter, CritiqueResponseFormatter
+from llm.agent import Agent
+from llm.schema import TikZResponseFormatter, CritiqueResponseFormatter
 from constants import RUBRICS_PROMPT_PATH, GENERATOR_PROMPT_PATH, CRITIC_PROMPT_PATH, MAX_ITER
 from tikzconvert.compile import tikz_to_formats
 import json, re, ast, base64, shutil
