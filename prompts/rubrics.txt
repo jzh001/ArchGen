@@ -1,12 +1,12 @@
 1. Visuals
-    - Diagram must be visually appealing (e.g. not just boxes, but using circles as neurons, stacked frames for convolutions, etc.)
+    - Diagram must be visually appealing and creative.
     - All text should be visible and clear (i.e. sufficient contrast for text on color, if any)
     - Shapes must be complete. Do not include partially created shapes, or partially shaded objects.
-    - Diagram should fit within 2 columns in a LaTeX document
-    - The figure should have width to height ratio of around 3:2.
+    - Diagram should fit within 2 columns in a LaTeX document and be reasonably rectangular (not narrow strips)
     - There should be no overlapping text or shapes.
     - The diagram and text should be completely contained within the figure. No part of the diagram or text should be cropped for the final image.
     - Do not leave too much white space around the figure after PDF compilation.
+    - Place priority on evaluating images if provided, over the TikZ code.
 2. Accuracy
     - Diagram must follow the logic of the code provided as closely as possible. You may provide high level summaries if the model architecture is very complex, but it must remain accurate.
     - Diagram should present sufficient detail

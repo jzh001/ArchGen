@@ -1,4 +1,5 @@
 from llm.select_llm import get_llm
+import re
 
 class Agent:
     def __init__(self, instruction_prompt_path: str, provider_choice: str, **kwargs):
@@ -6,12 +7,20 @@ class Agent:
         self.config = {"configurable": {"thread_id": "thread1"}}
         self.messages = []
 
-        # Read template and safely insert schema JSON without letting
-        # str.format() interpret braces inside the JSON.
         with open(instruction_prompt_path) as f:
             template_text = f.read()
 
-        final_prompt = template_text.format(**kwargs)
+        def safe_format(template, **kwargs):
+            # Convert double braces to single braces first
+            template = template.replace("{{", "{").replace("}}", "}")
+            # Replace single braces only
+            pattern = re.compile(r'(?<!{){(\w+)}(?!})')
+            def replacer(match):
+                key = match.group(1)
+                return str(kwargs.get(key, match.group(0)))
+            return pattern.sub(replacer, template)
+
+        final_prompt = safe_format(template_text, **kwargs)
 
         self.messages.append(final_prompt)
 
