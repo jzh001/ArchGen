@@ -2,7 +2,7 @@ from .agent import Agent
 from .schema import TikZResponseFormatter, CritiqueResponseFormatter
 from constants import RUBRICS_PROMPT_PATH, GENERATOR_PROMPT_PATH, CRITIC_PROMPT_PATH, MAX_ITER
 from tikzconvert.compile import tikz_to_formats
-import json, re, ast, base64
+import json, re, ast, base64, shutil
 
 def run(input_code: str, provider_choice: str) -> str:
     """Run the generator-critic loop with rendering and self-approval.
@@ -47,6 +47,21 @@ def run(input_code: str, provider_choice: str) -> str:
         provider_choice=provider_choice,
     )
 
+    # Detect whether a LaTeX toolchain / rasterizer is available in the runtime.
+    # If not present (common when a Spaces runtime doesn't include TeX), we
+    # short-circuit the compile->fix loop to avoid infinite retries: return
+    # the generator's TikZ source after the first successful generation.
+    def _latex_available() -> bool:
+        return any(shutil.which(x) for x in ("tectonic", "latexmk", "pdflatex"))
+
+    def _rasterizer_available() -> bool:
+        return any(shutil.which(x) for x in ("pdftoppm", "pdftocairo", "magick", "convert", "gs"))
+
+    compile_possible = _latex_available()
+    raster_possible = _rasterizer_available()
+    if not compile_possible:
+        print("[workflow] No LaTeX engine detected in PATH. Will skip compile/critic loop and return TikZ source when produced.")
+
     while iteration < max_iter and iteration < safety_ceiling:
         iteration += 1
 
@@ -66,7 +81,12 @@ def run(input_code: str, provider_choice: str) -> str:
             max_iter += 1
             continue
 
-        # 2) Try compiling to JPEG
+        # 2) Try compiling to JPEG (if possible in this runtime)
+        if not compile_possible:
+            # We cannot compile here (no TeX toolchain). Return the generated TikZ
+            # as the best-effort result to avoid looping forever in Spaces.
+            return tikz_code
+
         outputs = {}
         try:
             outputs = tikz_to_formats(tikz_code, formats=("jpeg", "tikz"))
