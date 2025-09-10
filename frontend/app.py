@@ -5,9 +5,9 @@ import gradio as gr
 import os
 import base64
 from dotenv import load_dotenv
-from .diagram import render_graph
-from .exporters import save_outputs
-from .presets import PRESETS
+from frontend.diagram import render_graph
+from frontend.exporters import save_outputs
+from frontend.presets import PRESETS
 import time
 from constants import LLM_OPTIONS
 
