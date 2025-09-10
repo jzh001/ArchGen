@@ -168,7 +168,7 @@ def extract_dict_from_json(ai_msg: str) -> dict:
         pass
 
     # 2) try to find a JSON block in a ```json code fence
-    m = re.search(r"```json\s*(\{.*?\})\s*```", ai_msg, re.S)
+    m = re.search(r"```json\s*(\{.*\})\s*```", ai_msg, re.S)
     if m:
         try:
             return json.loads(m.group(1))
@@ -176,7 +176,7 @@ def extract_dict_from_json(ai_msg: str) -> dict:
             pass
 
     # 3) try a generic code fence
-    m = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", ai_msg, re.S)
+    m = re.search(r"```(?:json)?\s*(\{.*\})\s*```", ai_msg, re.S)
     if m:
         try:
             return json.loads(m.group(1))
