@@ -1,27 +1,38 @@
-from transformers import pipeline
-from llama_index.core import VectorStoreIndex, StorageContext
-from llama_index.vector_stores.supabase import SupabaseVectorStore
-import os
+from vector_db import index as vindex
+from llama_index.core import Settings
+from llama_index.embeddings.huggingface.base import HuggingFaceEmbedding
 
-# Initialize Supabase credentials
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+def perform_rag(query: str):
+    """
+    Perform Retrieval-Augmented Generation (RAG) using the vector index.
+    Args:
+        query (str): The input query string.
+    Returns:
+        list: Retrieved documents relevant to the query.
+    """
+    # IMPORTANT: reference attributes off the module to avoid stale imports
+    if not vindex.is_vector_db_ready() or vindex.vector_store is None or vindex.index is None or type(Settings.embed_model) != HuggingFaceEmbedding:
+        error = vindex.get_vector_db_error()
+        print(f"Vector DB not ready. Error: {error}")
+        return "Vector DB is not ready. Please try again later." if not error else f"Vector DB error: {error}"
 
-def perform_rag(query):
-    """Perform Retrieval-Augmented Generation (RAG) using CodeBERT."""
-    # Connect to the vector database
-    vector_store = SupabaseVectorStore(supabase_url=SUPABASE_URL, supabase_key=SUPABASE_KEY)
-    storage_context = StorageContext.from_defaults(vector_store=vector_store)
-    index = VectorStoreIndex.from_storage_context(storage_context)
+    # Ensure a covering index for cosine_distance exists
+    try:
+        # This assumes vindex.vector_store is a vecs Collection object
+        if hasattr(vindex.vector_store, "create_index"):
+            vindex.vector_store.create_index(measure="cosine_distance")
+    except Exception as e:
+        print(f"Warning: Could not create covering index for cosine_distance: {e}")
 
-    # Retrieve relevant documents
-    retrieved_docs = index.query(query)
+    print(f"Performing RAG")
+    try:
+        query_engine = vindex.index.as_query_engine(llm=None, embed_model=Settings.embed_model)
+        response = query_engine.query(query)
+        docs = [node.node.get_content() for node in response.source_nodes]
+        result_text = "\n\n".join(docs)
 
-    # Initialize CodeBERT for generation
-    generator = pipeline("text2text-generation", model="microsoft/codebert-base")
-
-    # Generate responses based on retrieved documents
-    context = "\n".join([doc.text for doc in retrieved_docs])
-    response = generator(f"Context: {context}\nQuery: {query}", max_length=512, num_return_sequences=1)
-
-    return response[0]['generated_text']
+        # print("RAG response:", result_text)
+        return result_text
+    except Exception as e:
+        print(f"Error during RAG query: {e}")
+        return ""

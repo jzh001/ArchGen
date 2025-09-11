@@ -17,7 +17,11 @@ load_dotenv()  # Load environment variables from .env file if present
 def build_interface():
     with gr.Blocks(title="ArchGen") as demo:
         gr.Markdown("# ArchGen\nPaste or select a PyTorch nn.Module to generate an architecture diagram.")
-        
+
+        # Persistent states for loading and results
+        loading_state = gr.State(False)
+        result_state = gr.State(None)
+
         with gr.Tabs():
             with gr.TabItem("Generate Diagram"):
                 with gr.Row():
@@ -33,7 +37,12 @@ def build_interface():
                 def _ensure_code(preset_choice, current_code):
                     return PRESETS[preset_choice] if preset_choice and PRESETS.get(preset_choice) else current_code
 
+                def set_loading():
+                    return gr.update(visible=True, value="Loading..."), True, None
+
                 def generate(preset_choice, code_text, provider_choice):
+                    # Set loading state
+                    status_update, loading, _ = set_loading()
                     outputs = render_graph(code_text, provider_choice, want_jpeg=True)
                     paths = save_outputs(outputs)
                     downloads = [p for k, p in paths.items() if k in ("jpeg", "pdf", "tex")]
@@ -74,37 +83,76 @@ def build_interface():
                                 html_preview = "<p>No PDF generated.</p>"
                         else:
                             html_preview = "<p>No PDF generated.</p>"
-                    return html_preview, downloads, gr.update(value=status_text, visible=True)
+                    # Set states: loading False, result
+                    return html_preview, downloads, gr.update(value=status_text, visible=True), False, status_text
 
+                # When preset changes, update code
                 preset.change(_ensure_code, [preset, code], [code])
+                # When generate is clicked, set loading state, then run generate
+                generate_btn.click(
+                    set_loading,
+                    [],
+                    [status, loading_state, result_state],
+                    queue=True
+                )
                 generate_btn.click(
                     generate,
                     [preset, code, provider],
-                    [pdf_viewer, download_files, status],
+                    [pdf_viewer, download_files, status, loading_state, result_state],
+                    queue=True
                 )
 
-            with gr.TabItem("Admin - Add Documents"):
+                # Remove status.select, as Markdown does not support .select. Status is updated only via callbacks.
+
+            with gr.TabItem("Admin Dashboard"):
                 admin_password = gr.Textbox(label="Admin Password", type="password")
-                document_text = gr.Textbox(label="Enter Documents (separate multiple documents with '---')", lines=10, placeholder="Type your documents here...")
+                doc_desc = gr.Textbox(label="Description", lines=2, placeholder="Describe the document...")
+                doc_tikz = gr.Textbox(label="TikZ Code", lines=8, placeholder="Paste TikZ code here...")
                 upload_status = gr.Markdown(visible=False)
                 upload_btn = gr.Button("Submit", variant="primary")
 
+                # RAG Query Test UI
+                rag_query = gr.Textbox(label="Test RAG Query", placeholder="Type your query here...")
+                rag_response = gr.Markdown(visible=False)
+                rag_btn = gr.Button("Test Query", variant="secondary")
 
-                def upload_documents(password, text):
+                from vector_db.index import is_vector_db_ready, get_vector_db_error
+
+                def upload_documents(password, desc, tikz):
+                    if not is_vector_db_ready():
+                        error = get_vector_db_error()
+                        if error:
+                            return gr.update(value=f"Vector DB error: {error}", visible=True)
+                        return gr.update(value="Connecting to vector database... Please wait.", visible=True)
+
                     if password != os.getenv("ADMIN_PASSWORD"):
                         return gr.update(value="Invalid password.", visible=True)
 
-                    if not text.strip():
-                        return gr.update(value="No text provided.", visible=True)
+                    if not desc.strip() and not tikz.strip():
+                        return gr.update(value="No description or TikZ code provided.", visible=True)
 
                     try:
-                        documents = [doc.strip() for doc in text.split('---') if doc.strip()]
-                        count = add_documents_to_vector_db(documents)
-                        return gr.update(value=f"✅ Successfully added {count} document(s) to the database.", visible=True)
+                        import json
+                        doc_obj = {"description": desc.strip(), "tikz": tikz.strip()}
+                        doc_json = json.dumps(doc_obj, ensure_ascii=False)
+                        count = add_documents_to_vector_db([doc_json])
+                        return gr.update(value=f"✅ Successfully added {count} document to the database.", visible=True)
                     except Exception as e:
                         return gr.update(value=f"Error adding documents: {str(e)}", visible=True)
 
-                upload_btn.click(upload_documents, [admin_password, document_text], [upload_status])
+                def test_rag_query(query):
+                    if not query.strip():
+                        return gr.update(value="No query provided.", visible=True)
+                    try:
+                        from vector_db.rag import perform_rag
+                        response = perform_rag(query)
+                        # Render the response as a fenced code block for clarity
+                        return gr.update(value=f"**RAG Response:**\n\n```text\n{response}\n```", visible=True)
+                    except Exception as e:
+                        return gr.update(value=f"Error during RAG query: {str(e)}", visible=True)
+
+                upload_btn.click(upload_documents, [admin_password, doc_desc, doc_tikz], [upload_status])
+                rag_btn.click(test_rag_query, [rag_query], [rag_response])
 
     return demo
 

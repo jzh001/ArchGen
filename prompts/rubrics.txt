@@ -1,8 +1,9 @@
 1. Visuals
-    - Diagram must be visually appealing and creative.
+    - Diagram must be visually appealing and creative. Use the examples given for design inspiration if necessary.
+    - There should be sufficient granularity -- see examples given by RAG (do not just use boxes to represent everything)
     - All text should be visible and clear (i.e. sufficient contrast for text on color, if any)
     - Shapes must be complete. Do not include partially created shapes, or partially shaded objects.
-    - Diagram should fit within 2 columns in a LaTeX document and be reasonably rectangular (not narrow strips)
+    - Diagram should fit within 1 or 2 columns in a LaTeX research paper document and be reasonably rectangular (around 2:3 or 3:2 aspect ratio)
     - There should be no overlapping text or shapes. Text should not overflow any containers.
     - The diagram and text should be completely contained within the page. Failure of this point is an automatic fail for the proposed TikZ code.
     - Do not leave too much white space around the figure after PDF compilation.

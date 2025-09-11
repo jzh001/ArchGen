@@ -5,48 +5,93 @@ from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.core import Settings
 
 import torch
-
 import os
+import threading
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# Initialize Supabase credentials
+# Global status and objects
+VECTOR_DB_READY = False
+VECTOR_DB_ERROR = None
+vector_store = None
+index = None
 
-DB_CONNECTION = os.getenv("DB_CONNECTION")
-COLLECTION_NAME = "documents"
 
-# Error handling for missing environment variables
-missing_vars = []
-if not DB_CONNECTION:
-    missing_vars.append("DB_CONNECTION")
+def _init_vector_db():
+    global VECTOR_DB_READY, VECTOR_DB_ERROR, vector_store, index
+    try:
+        DB_CONNECTION = os.getenv("DB_CONNECTION")
+        COLLECTION_NAME = "documents"
+        missing_vars = []
+        if not DB_CONNECTION:
+            missing_vars.append("DB_CONNECTION")
+        if missing_vars:
+            raise EnvironmentError(f"Missing required environment variables: {', '.join(missing_vars)}")
 
-if missing_vars:
-    raise EnvironmentError(f"Missing required environment variables: {', '.join(missing_vars)}")
+        # Set HuggingFace embedding model globally
+        if torch.cuda.is_available():
+            device = "cuda"
+        elif torch.backends.mps.is_available():
+            device = "mps"
+        else:
+            device = "cpu"
+        print("Using device:", device)
+        embed_model = HuggingFaceEmbedding(
+            model_name="BAAI/bge-small-en-v1.5",
+            device=device
+        )
+        Settings.embed_model = embed_model
+        # Explicitly disable default LLM usage to avoid OpenAI attempts
+        Settings.llm = None
 
-# Set HuggingFace embedding model globally
-# Select device: cuda > mps > cpu
-if torch.cuda.is_available():
-    device = "cuda"
-elif torch.backends.mps.is_available():
-    device = "mps"
-else:
-    device = "cpu"
-print("Using device:", device)
-Settings.embed_model = HuggingFaceEmbedding(
-    model_name="BAAI/bge-small-en-v1.5",
-    device=device
-)
+        # Prefer creating the covering index using vecs client directly (most reliable)
+        try:
+            from vecs import create_client as create_vecs_client, IndexMeasure
+            vx = create_vecs_client(DB_CONNECTION)
+            # BGE Small v1.5 outputs 384-d embeddings
+            collection = vx.get_or_create_collection(name=COLLECTION_NAME, dimension=384)
+            collection.create_index(measure=IndexMeasure.cosine_distance)
+            print("Ensured vecs covering index for cosine_distance (pre-store init).")
+        except Exception as e:
+            print(f"Warning: Could not ensure vecs covering index before store init: {e}")
 
-vector_store = SupabaseVectorStore(
-                    postgres_connection_string=DB_CONNECTION,
-                    collection_name=COLLECTION_NAME
-                )
-print("Connected to Supabase vector store.")
-index = VectorStoreIndex.from_vector_store(vector_store)
+        vector_store = SupabaseVectorStore(
+            postgres_connection_string=DB_CONNECTION,
+            collection_name=COLLECTION_NAME
+        )
+        print("Connected to Supabase vector store.")
+
+        # Try to ensure index using the store's own collection handle if present
+        try:
+            if hasattr(vector_store, "collection") and vector_store.collection is not None:
+                # vecs accepts a string measure; avoid importing enums to reduce env coupling
+                vector_store.collection.create_index(measure="cosine_distance")
+                print("Ensured covering index via SupabaseVectorStore.collection (cosine_distance).")
+        except Exception as e:
+            print(f"Warning: Could not ensure index via vector_store.collection: {e}")
+
+        index = VectorStoreIndex.from_vector_store(vector_store)
+        VECTOR_DB_READY = True
+    except Exception as e:
+        VECTOR_DB_ERROR = str(e)
+        print(f"Error initializing Supabase vector DB: {e}")
+
+# Start connection in background
+threading.Thread(target=_init_vector_db, daemon=True).start()
+
+def is_vector_db_ready():
+    return VECTOR_DB_READY
+
+def get_vector_db_error():
+    return VECTOR_DB_ERROR
 
 def add_documents_to_vector_db(documents):
     """Add documents to the Supabase vector database."""
+    if not VECTOR_DB_READY:
+        raise RuntimeError("Vector DB is not ready yet.")
+    if VECTOR_DB_ERROR:
+        raise RuntimeError(f"Vector DB error: {VECTOR_DB_ERROR}")
     print("Adding documents to the vector database...")
     try:
         # Convert documents to the required format
