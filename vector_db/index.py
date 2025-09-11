@@ -45,32 +45,11 @@ def _init_vector_db():
         # Explicitly disable default LLM usage to avoid OpenAI attempts
         Settings.llm = None
 
-        # Prefer creating the covering index using vecs client directly (most reliable)
-        try:
-            from vecs import create_client as create_vecs_client, IndexMeasure
-            vx = create_vecs_client(DB_CONNECTION)
-            # BGE Small v1.5 outputs 384-d embeddings
-            collection = vx.get_or_create_collection(name=COLLECTION_NAME, dimension=384)
-            collection.create_index(measure=IndexMeasure.cosine_distance)
-            print("Ensured vecs covering index for cosine_distance (pre-store init).")
-        except Exception as e:
-            print(f"Warning: Could not ensure vecs covering index before store init: {e}")
-
         vector_store = SupabaseVectorStore(
             postgres_connection_string=DB_CONNECTION,
             collection_name=COLLECTION_NAME
         )
         print("Connected to Supabase vector store.")
-
-        # Try to ensure index using the store's own collection handle if present
-        try:
-            if hasattr(vector_store, "collection") and vector_store.collection is not None:
-                # vecs accepts a string measure; avoid importing enums to reduce env coupling
-                vector_store.collection.create_index(measure="cosine_distance")
-                print("Ensured covering index via SupabaseVectorStore.collection (cosine_distance).")
-        except Exception as e:
-            print(f"Warning: Could not ensure index via vector_store.collection: {e}")
-
         index = VectorStoreIndex.from_vector_store(vector_store)
         VECTOR_DB_READY = True
     except Exception as e:
