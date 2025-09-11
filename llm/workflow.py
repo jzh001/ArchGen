@@ -2,6 +2,7 @@ from llm.agent import Agent
 from constants import RUBRICS_PROMPT_PATH, GENERATOR_PROMPT_PATH, CRITIC_PROMPT_PATH, MAX_ITER
 from tikzconvert.compile import tikz_to_formats
 import json, re, ast, base64, shutil
+from llm.tools import search_tikz_database
 
 def run(input_code: str, provider_choice: str) -> str:
     """Run the generator-critic loop with rendering and self-approval.
@@ -30,18 +31,22 @@ def run(input_code: str, provider_choice: str) -> str:
         "Generate the TikZ code for the diagram. Output only the JSON as per the schema."
     )
 
+    tools = [search_tikz_database]
+
     # Hard safety ceiling to avoid truly infinite loops in pathological cases
     safety_ceiling = MAX_ITER + 25
     generator_agent = Agent(
         GENERATOR_PROMPT_PATH,
         rubrics=rubrics,
         provider_choice=provider_choice,
+        tools=tools,
     )
 
     critic_agent = Agent(
         CRITIC_PROMPT_PATH,
         rubrics=rubrics,
         provider_choice=provider_choice,
+        tools=tools,
     )
 
     # print("[Generator Prompt] ", generator_agent.messages[0])
@@ -78,6 +83,7 @@ def run(input_code: str, provider_choice: str) -> str:
                 f"The previous response did not include 'tikz_code'. Please return valid JSON with a 'tikz_code' field.\n\n"
                 f"Original input to depict:\n{input_code}"
             )
+            print("No 'tikz_code' found in generator response; retrying.")
             max_iter += 1
             continue
 
@@ -85,6 +91,7 @@ def run(input_code: str, provider_choice: str) -> str:
         if not compile_possible:
             # We cannot compile here (no TeX toolchain). Return the generated TikZ
             # as the best-effort result to avoid looping forever in Spaces.
+            print("No LaTeX toolchain detected; skipping compile/critic loop and returning TikZ source.")
             return tikz_code
 
         outputs = {}
@@ -101,6 +108,7 @@ def run(input_code: str, provider_choice: str) -> str:
                 f"Here was your last 'tikz_code':\n{tikz_code}\n"
             )
             max_iter += 1
+            print("TikZ code failed to compile to JPEG; asking generator to fix.")
             continue
 
         # 3) We have a JPEG; convert to base64 for passing to LLMs

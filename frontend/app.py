@@ -10,13 +10,18 @@ from frontend.exporters import save_outputs
 from frontend.presets import PRESETS
 from constants import LLM_OPTIONS
 from vector_db.index import add_documents_to_vector_db
+import time
 
 load_dotenv()  # Load environment variables from .env file if present
 
-
 def build_interface():
     with gr.Blocks(title="ArchGen") as demo:
-        gr.Markdown("# ArchGen\nPaste or select a PyTorch nn.Module to generate an architecture diagram.")
+        gr.Markdown("""
+        # ArchGen
+        Paste or select a PyTorch nn.Module to generate an architecture diagram.
+
+        """
+        )
 
         # Persistent states for loading and results
         loading_state = gr.State(False)
@@ -153,7 +158,17 @@ def build_interface():
 
                 upload_btn.click(upload_documents, [admin_password, doc_desc, doc_tikz], [upload_status])
                 rag_btn.click(test_rag_query, [rag_query], [rag_response])
-
+        gr.Markdown("""
+        ## References
+        - [NNTikZ - TikZ Diagrams for Deep Learning and Neural Networks](https://github.com/fraserlove/nntikz)  
+            Fraser Love, 2024. GitHub repository.  
+            `@misc{love2024nntikz, author = {Fraser Love}, title = {NNTikZ - TikZ Diagrams for Deep Learning and Neural Networks}, year = 2024, url = {https://github.com/fraserlove/nntikz}, note = {GitHub repository} }`
+        - [Collection of LaTeX resources and examples](https://github.com/davidstutz/latex-resources)  
+            David Stutz, 2022. GitHub repository.  
+            `@misc{Stutz2022, author = {David Stutz}, title = {Collection of LaTeX resources and examples}, publisher = {GitHub}, journal = {GitHub repository}, howpublished = {\\url{https://github.com/davidstutz/latex-resources}}, note = {Accessed on MM.DD.YYYY}}`
+        - [tikz.net](https://tikz.net)  
+            A collection of TikZ examples and resources.
+        """)
     return demo
 
 

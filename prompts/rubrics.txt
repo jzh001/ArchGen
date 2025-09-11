@@ -1,11 +1,12 @@
 1. Visuals
-    - Diagram must be visually appealing and creative. Use the examples given for design inspiration if necessary.
-    - There should be sufficient granularity -- see examples given by RAG (do not just use boxes to represent everything)
+    - Diagram must be visually appealing and creative. Draw design inspiration from the RAG examples.
+    - There should be sufficient granularity -- see examples given by RAG
+    - Be creative -- do not just use boxes and arrows. Try out fancier shapes like circles for neurons, or stacked squares for tensors. Maybe even include math if you like.
     - All text should be visible and clear (i.e. sufficient contrast for text on color, if any)
     - Shapes must be complete. Do not include partially created shapes, or partially shaded objects.
-    - Diagram should fit within 1 or 2 columns in a LaTeX research paper document and be reasonably rectangular (around 2:3 or 3:2 aspect ratio)
+    - Diagram should fit within 1 or 2 columns in a LaTeX research paper document and be reasonably rectangular (around 2:3 or 3:2 aspect ratio) -> this is important! Do not have (vertically or horizontally) long images which cannot fit in a research paper.
     - There should be no overlapping text or shapes. Text should not overflow any containers.
-    - The diagram and text should be completely contained within the page. Failure of this point is an automatic fail for the proposed TikZ code.
+    - The diagram and text should be completely contained within the page or drawn boundary (if any). Failure of this point is an automatic fail for the proposed TikZ code.
     - Do not leave too much white space around the figure after PDF compilation.
     - Place priority on evaluating images if provided, over the TikZ code.
 2. Accuracy
@@ -14,3 +15,9 @@
 3. Formatting
     - Ensure that the full TikZ code is generated, which includes begin and end document tags
     - Import all required packages
+
+
+Automatic Failure:
+- Overlapping text or figures
+- Figures or text overflowing borders or figure limits
+- Long images that do not obey the roughly 2:3 or 3:2 aspect ratio

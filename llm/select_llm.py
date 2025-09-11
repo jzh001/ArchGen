@@ -28,5 +28,7 @@ def get_llm(llm_option: str, tools: list = []):
     else:
         raise ValueError(f"Unknown llm_option: {llm_option}")
 
-    llm.bind_tools(tools)
+    # Bind tools only when provided and ensure we use the returned Runnable
+    if tools:
+        llm = llm.bind_tools(tools)
     return llm

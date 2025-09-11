@@ -9,3 +9,4 @@ LLM_OPTIONS = [
     "anthropic:claude-4-sonnet",
 ]
 MAX_ITER = 5
+MAX_AGENT_ITER = 10
