@@ -18,6 +18,7 @@ llama-index-vector-stores-supabase>=0.1.0
 llama-index>=0.6.0
 transformers>=4.0.0
 llama-index>=0.6.0
+llama-index-embeddings-huggingface>=0.1.0
 
 # Optional / local (not required on Hugging Face Space default CPU build)
 ollama

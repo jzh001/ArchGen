@@ -44,8 +44,8 @@ def run(input_code: str, provider_choice: str) -> str:
         provider_choice=provider_choice,
     )
 
-    print("[Generator Prompt] ", generator_agent.messages[0])
-    print("[Critic Prompt] ", critic_agent.messages[0])
+    # print("[Generator Prompt] ", generator_agent.messages[0])
+    # print("[Critic Prompt] ", critic_agent.messages[0])
 
     # Detect whether a LaTeX toolchain / rasterizer is available in the runtime.
     # If not present (common when a Spaces runtime doesn't include TeX), we
