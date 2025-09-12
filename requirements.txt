@@ -1,4 +1,4 @@
-gradio>=4.44.1
+gradio>=4.48.0
 networkx>=3.2.1
 torch>=2.0.0
 torchvision>=0.15.0
@@ -20,6 +20,7 @@ transformers>=4.0.0
 llama-index>=0.6.0
 llama-index-embeddings-huggingface>=0.1.0
 psycopg2-binary>=2.9.0
+Pillow>=10.0.0
 
 # Optional / local (not required on Hugging Face Space default CPU build)
 ollama

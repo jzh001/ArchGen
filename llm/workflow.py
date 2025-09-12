@@ -1,8 +1,10 @@
 from llm.agent import Agent
 from constants import RUBRICS_PROMPT_PATH, GENERATOR_PROMPT_PATH, CRITIC_PROMPT_PATH, MAX_ITER
 from tikzconvert.compile import tikz_to_formats
-import json, re, ast, base64, shutil
+import json, re, ast, base64, shutil, tempfile, os
 from llm.tools import search_tikz_database
+
+from PIL import Image
 
 def run(input_code: str, provider_choice: str) -> str:
     """Run the generator-critic loop with rendering and self-approval.
@@ -122,6 +124,25 @@ def run(input_code: str, provider_choice: str) -> str:
             )
             max_iter += 1
             continue
+
+        # Check aspect ratio of the image
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpeg") as temp_jpeg:
+            temp_jpeg.write(jpeg_bytes)
+            temp_jpeg_path = temp_jpeg.name
+
+        try:
+            with Image.open(temp_jpeg_path) as img:
+                width, height = img.size
+                aspect_ratio = max(width / height, height / width)
+                if aspect_ratio > 5:
+                    msg_to_generator = (
+                        "The generated image has an extreme aspect ratio exceeding 5:1 or 1:5. Please adjust the TikZ code to produce a more balanced diagram.\n\n"
+                        f"Last 'tikz_code':\n{tikz_code}\n"
+                    )
+                    max_iter += 1
+                    continue
+        finally:
+            os.unlink(temp_jpeg_path)
 
         # 4) Ask external Critic (with the final image)
         critic_prompt = (

@@ -7,11 +7,14 @@
     - Diagram should fit within 1 or 2 columns in a LaTeX research paper document and be reasonably rectangular (around height to width ratio of around 2:3) -> this is important! Do not have (vertically or horizontally) long images which cannot fit in a research paper.
     - There should be no overlapping text or shapes. Text should not overflow any containers.
     - The diagram and text should be completely contained within the page or drawn boundary (if any). Failure of this point is an automatic fail for the proposed TikZ code.
+    - Unless intended, arrows should not exceed boundaries of containers they are originating from or pointing to.
     - Do not leave too much white space around the figure after PDF compilation.
     - Place priority on evaluating images if provided, over the TikZ code.
+    - There is no need to include titles or captions, your diagram should be sufficient in providing a good overview of the provided Python code.
 2. Accuracy
     - Diagram must follow the logic of the code provided as closely as possible. You may provide high level summaries if the model architecture is very complex, but it must remain accurate.
     - Diagram should present sufficient detail
+    - If any variable names are displayed in the diagram, they should be unambiguous
 3. Formatting
     - Ensure that the full TikZ code is generated, which includes begin and end document tags
     - Import all required packages

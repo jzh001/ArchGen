@@ -54,8 +54,8 @@ def _init_vector_db():
             postgres_connection_string=DB_CONNECTION,
             collection_name=COLLECTION_NAME
         )
-        print("Connected to Supabase vector store.")
         index = VectorStoreIndex.from_vector_store(vector_store)
+        print("Connected to Supabase vector store.")
         VECTOR_DB_READY = True
     except Exception as e:
         VECTOR_DB_ERROR = str(e)

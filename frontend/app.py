@@ -8,10 +8,21 @@ from frontend.diagram import render_graph
 from frontend.exporters import save_outputs
 from frontend.presets import PRESETS
 from constants import LLM_OPTIONS
-from vector_db.index import add_documents_to_vector_db
-import time
+from vector_db.index import add_documents_to_vector_db, is_vector_db_ready, get_vector_db_error
 
 load_dotenv()  # Load environment variables from .env file if present
+
+def get_db_status():
+    if is_vector_db_ready():
+        return "✅ Vector DB: Ready"
+    error = get_vector_db_error()
+    if error:
+        return f"❌ Vector DB: Error - {error}"
+    else:
+        return "⏳ Vector DB: Initializing..."
+
+def update_display(status):
+    return status
 
 def build_interface():
     with gr.Blocks(title="ArchGen") as demo:
@@ -23,6 +34,10 @@ def build_interface():
             <span style='color:orange; font-weight:bold;'>⚠️ Please note: Generation may take up to a few minutes depending on model and server load.</span>
             """
         )
+
+        db_status = gr.Markdown(value=get_db_status())
+
+        db_status_state = gr.State(value=get_db_status())
 
         # Persistent states for loading and results
         loading_state = gr.State(False)
@@ -200,6 +215,12 @@ def build_interface():
         - [tikz.net](https://tikz.net)  
             A collection of TikZ examples and resources.
         """)
+
+        timer = gr.Timer(0.2)
+        timer.tick(get_db_status, [], [db_status_state])
+
+        db_status_state.change(update_display, [db_status_state], [db_status])
+
     return demo
 
 
