@@ -110,11 +110,12 @@ def build_interface():
                 # When preset changes, update code
                 preset.change(_ensure_code, [preset, code], [code])
                 # When generate is clicked, set loading state, then run generate
+                # Fast UI update should not claim a queue job; avoid extra SSE stream
                 generate_btn.click(
                     set_loading,
                     [],
                     [status, loading_state, result_state],
-                    queue=True
+                    queue=False
                 )
                 generate_btn.click(
                     generate,
@@ -216,9 +217,11 @@ def build_interface():
             A collection of TikZ examples and resources.
         """)
 
-        timer = gr.Timer(0.2)
+        # Reduce polling frequency to lower SSE churn (was 0.2s). Must remain inside Blocks context.
+        timer = gr.Timer(2.0)
         timer.tick(get_db_status, [], [db_status_state])
 
+        # When db status state changes, update visible markdown.
         db_status_state.change(update_display, [db_status_state], [db_status])
 
     return demo

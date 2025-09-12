@@ -6,7 +6,8 @@ LLM_OPTIONS = [
     # "ollama:qwen3:8b",
     "google-genai:gemini-2.5-flash",
     "google-genai:gemini-2.5-flash-lite",
-    "anthropic:claude-4-sonnet",
+    "google-genai:gemini-2.5-pro",
+    # "anthropic:claude-4-sonnet",
 ]
 MAX_ITER = 5
 MAX_AGENT_ITER = 10
