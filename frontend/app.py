@@ -1,4 +1,3 @@
-"""Gradio application for ArchGen prototype."""
 from __future__ import annotations
 
 import gradio as gr
@@ -176,6 +175,21 @@ def build_interface():
                 upload_btn.click(upload_documents, [doc_desc, doc_tikz], [upload_status])
                 rag_btn.click(test_rag_query, [rag_query], [rag_response])
         gr.Markdown("""
+        ## Citation
+        If you use ArchGen in your research or teaching, please cite:
+
+        ```
+        @software{jiang_archgen_2025,
+          author    = {Zhiheng Jiang},
+          title     = {ArchGen: Automated Neural Network Architecture Diagram Generation},
+          year      = {2025},
+          url       = {https://github.com/jzh001/ArchGen},
+          license   = {Apache-2.0},
+          note      = {Version: latest}
+        }
+        ```
+
+        ---
         ## References
         - [NNTikZ - TikZ Diagrams for Deep Learning and Neural Networks](https://github.com/fraserlove/nntikz)  
             Fraser Love, 2024. GitHub repository.  
