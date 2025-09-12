@@ -110,32 +110,40 @@ def build_interface():
                 # Remove status.select, as Markdown does not support .select. Status is updated only via callbacks.
 
             with gr.TabItem("Admin Dashboard"):
-                admin_password = gr.Textbox(label="Admin Password", type="password")
-                doc_desc = gr.Textbox(label="Description", lines=2, placeholder="Describe the document...")
-                doc_tikz = gr.Textbox(label="TikZ Code", lines=8, placeholder="Paste TikZ code here...")
-                upload_status = gr.Markdown(visible=False)
-                upload_btn = gr.Button("Submit", variant="primary")
+                # State to track password validation
+                admin_authenticated = gr.State(False)
+                admin_password = gr.Textbox(label="Enter Admin Password", type="password", visible=True)
+                password_status = gr.Markdown(visible=False)
 
-                # RAG Query Test UI
-                rag_query = gr.Textbox(label="Test RAG Query", placeholder="Type your query here...")
-                rag_response = gr.Markdown(visible=False)
-                rag_btn = gr.Button("Test Query", variant="secondary")
+                # All admin options are hidden until password is validated
+                with gr.Column(visible=False) as admin_panel:
+                    doc_desc = gr.Textbox(label="Description", lines=2, placeholder="Describe the document...")
+                    doc_tikz = gr.Textbox(label="TikZ Code", lines=8, placeholder="Paste TikZ code here...")
+                    upload_status = gr.Markdown(visible=False)
+                    upload_btn = gr.Button("Submit", variant="primary")
+
+                    rag_query = gr.Textbox(label="Test RAG Query", placeholder="Type your query here...")
+                    rag_response = gr.Markdown(visible=False)
+                    rag_btn = gr.Button("Test Query", variant="secondary")
 
                 from vector_db.index import is_vector_db_ready, get_vector_db_error
 
-                def upload_documents(password, desc, tikz):
+                def check_admin_password(pw):
+                    if pw == os.getenv("ADMIN_PASSWORD"):
+                        # Hide password box and status, show admin panel
+                        return gr.update(visible=False), gr.update(visible=False), True, gr.update(visible=True)
+                    else:
+                        # Show status, keep password box visible, keep admin panel hidden
+                        return gr.update(visible=True, value="Invalid password."), gr.update(visible=True), False, gr.update(visible=False)
+
+                def upload_documents(desc, tikz):
                     if not is_vector_db_ready():
                         error = get_vector_db_error()
                         if error:
                             return gr.update(value=f"Vector DB error: {error}", visible=True)
                         return gr.update(value="Connecting to vector database... Please wait.", visible=True)
-
-                    if password != os.getenv("ADMIN_PASSWORD"):
-                        return gr.update(value="Invalid password.", visible=True)
-
                     if not desc.strip() and not tikz.strip():
                         return gr.update(value="No description or TikZ code provided.", visible=True)
-
                     try:
                         import json
                         doc_obj = {"description": desc.strip(), "tikz": tikz.strip()}
@@ -151,12 +159,19 @@ def build_interface():
                     try:
                         from vector_db.rag import perform_rag
                         response = perform_rag(query)
-                        # Render the response as a fenced code block for clarity
                         return gr.update(value=f"**RAG Response:**\n\n```text\n{response}\n```", visible=True)
                     except Exception as e:
                         return gr.update(value=f"Error during RAG query: {str(e)}", visible=True)
 
-                upload_btn.click(upload_documents, [admin_password, doc_desc, doc_tikz], [upload_status])
+                # Password check: reveal admin panel if correct, hide password box/status
+                admin_password.submit(
+                    check_admin_password,
+                    [admin_password],
+                    [password_status, admin_password, admin_authenticated, admin_panel],
+                )
+
+                # Only allow upload/rag actions if authenticated
+                upload_btn.click(upload_documents, [doc_desc, doc_tikz], [upload_status])
                 rag_btn.click(test_rag_query, [rag_query], [rag_response])
         gr.Markdown("""
         ## References

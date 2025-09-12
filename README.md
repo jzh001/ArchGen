@@ -10,7 +10,7 @@ sdk: docker
 sdk_version: "4.36.0"
 app_file: frontend/app.py
 pinned: false
-thumbnail: "images/CNN2.png"
+# thumbnail: "images/CNN2.png"
 ---
 
 # ArchGen
