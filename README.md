@@ -75,6 +75,20 @@ Paste or select a PyTorch `nn.Module` in the UI to generate an architecture diag
 
 ---
 
+
+## Agentic RAG
+
+ArchGen uses a streamlined form of agentic Retrieval-Augmented Generation (RAG). In this system, each agent (generator or critic) can make tool calls per invocation to search the TikZ example database. The agent incorporates the retrieved results into its reasoning and output. The multi-agent workflow (generator and critic) allows for iterative improvement and critique, with each agent invocation optionally leveraging the retrieval tool.
+
+ArchGen’s agentic RAG workflow:
+- The generator and critic agents can each invoke the TikZ search tool to retrieve relevant examples.
+- Retrieved results are integrated into the agent’s reasoning and responses for that turn.
+- The multi-agent loop enables iterative refinement, with retrieval available at each agent step.
+
+This design makes ArchGen suitable for research, education, and engineering scenarios where deep model understanding and knowledge integration are required, while keeping the retrieval process simple and predictable.
+
+---
+
 ## License
 
 Apache-2.0
