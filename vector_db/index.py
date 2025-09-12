@@ -11,6 +11,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Ensure cache directories are writable in container/cloud environments
+os.environ["HF_HOME"] = "/tmp/.cache/huggingface"
+os.environ["TRANSFORMERS_CACHE"] = "/tmp/.cache/transformers"
+os.environ["LLAMA_INDEX_CACHE_DIR"] = "/tmp/.cache/llama_index"
+
 # Global status and objects
 VECTOR_DB_READY = False
 VECTOR_DB_ERROR = None
