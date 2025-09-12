@@ -15,11 +15,19 @@ pinned: false
 
 # ArchGen
 
-Prototype architecture diagram generator for PyTorch modules.
+**ArchGen** is a professional tool for generating architecture diagrams from PyTorch `nn.Module` code. Designed for researchers, engineers, and educators, ArchGen streamlines the visualization of deep learning models.
 
-## Quickstart (development)
+---
 
-Install in editable mode and run the UI locally:
+## 🚀 Try it out
+
+[Launch ArchGen on Hugging Face Spaces](https://huggingface.co/spaces/jzh001/ArchGen)
+
+---
+
+## Quickstart (Development)
+
+Install in editable mode and run locally:
 
 ```bash
 pip install -e .
@@ -28,7 +36,7 @@ python -m archgen.app
 
 ## Environment Keys
 
-Create a `.env` (copy `.env.example`) for provider keys used by the optional LLM integrations:
+To enable optional LLM integrations, create a `.env` file (copy `.env.example`) and add your provider keys:
 
 ```
 OPENAI_API_KEY=sk-...
@@ -40,73 +48,41 @@ ADMIN_PASSWORD=...
 
 ## Docker
 
-Build and run (exposes port 7860):
+Build and run (port 7860):
 
 ```bash
 docker build -t archgen .
 docker run --rm -p 7860:7860 archgen
 ```
 
-Or use docker compose:
+Or use Docker Compose:
 
 ```bash
 docker compose up --build
 ```
 
-For rapid iteration, consider live-mounting the source by enabling the volume in `docker-compose.yml`.
-
 ## Hugging Face Space
 
-This repository is mirrored to a Hugging Face Space (`hf` remote). To keep the Space in sync with GitHub (recommended), either push explicitly to both remotes or use a CI mirror.
-
-Manual sync (safe):
-
-```bash
-# update local from GitHub
-git fetch origin --prune
-git pull --rebase origin main
-
-# push to GitHub
-git push origin main
-
-# push to Hugging Face Space
-git push hf main
-```
-
-If the Hugging Face remote has divergent history, create a backup branch first and then force-push with lease:
-
-```bash
-git fetch hf --prune
-git checkout -b hf-main-backup hf/main || echo "no hf/main found"
-git push origin hf-main-backup
-git push --force-with-lease hf main
-```
-
-For long-term automation, consider adding a GitHub Action that pushes to the Space on every push to `main` (requires `HF_TOKEN` in GitHub Secrets).
+ArchGen is also available as a [Hugging Face Space](https://huggingface.co/spaces/jzh001/ArchGen). To keep the Space in sync with GitHub, push to both remotes or use CI automation.
 
 ## Contributing
 
-Contributions welcome. Open an issue or PR for bugs, features, or docs improvements.
+Contributions are welcome! Please open an issue or pull request for bugs, features, or documentation improvements.
 
 ## Example Usage
 
-Paste or select a PyTorch `nn.Module` to generate an architecture diagram. Example presets are available in the UI.
+Paste or select a PyTorch `nn.Module` in the UI to generate an architecture diagram. Example presets are available.
 
 ---
 
 ## License
 
-Apache-2.0 (intended) — update if you choose a different license.
+Apache-2.0
 
 ---
 
 ## References
 
-- [NNTikZ - TikZ Diagrams for Deep Learning and Neural Networks](https://github.com/fraserlove/nntikz)  
-    Fraser Love, 2024. GitHub repository.  
-    `@misc{love2024nntikz, author = {Fraser Love}, title = {NNTikZ - TikZ Diagrams for Deep Learning and Neural Networks}, year = 2024, url = {https://github.com/fraserlove/nntikz}, note = {GitHub repository} }`
-- [Collection of LaTeX resources and examples](https://github.com/davidstutz/latex-resources)  
-    David Stutz, 2022. GitHub repository.  
-    `@misc{Stutz2022, author = {David Stutz}, title = {Collection of LaTeX resources and examples}, publisher = {GitHub}, journal = {GitHub repository}, howpublished = {\\url{https://github.com/davidstutz/latex-resources}}, note = {Accessed on MM.DD.YYYY}}`
-- [tikz.net](https://tikz.net)  
-    A collection of TikZ examples and resources.
+- [NNTikZ - TikZ Diagrams for Deep Learning and Neural Networks](https://github.com/fraserlove/nntikz)
+- [Collection of LaTeX resources and examples](https://github.com/davidstutz/latex-resources)
+- [tikz.net](https://tikz.net)
