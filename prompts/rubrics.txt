@@ -21,7 +21,8 @@
 
 
 Automatic Failure (Do not rely on TikZ code for this, look at the latest image provided to you from compiling TikZ, if available):
-- Overlapping text or figures (double check this, this is a very common mistake)
+- Overlapping text or figures (double check this, this is a very common mistake) -> this includes overlapping text with borders of figures
 - Figures or text overflowing borders or figure limits
 - Long images that do not obey the roughly 2:3 or 3:2 aspect ratio
 - Given diagram does not follow the original Python code provided, with significant amounts of missing information.
+Any of the points above for automatic failure shall not pass the final evaluation.
