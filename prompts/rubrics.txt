@@ -21,3 +21,4 @@ Automatic Failure (Do not rely on TikZ code for this, look at the latest image p
 - Overlapping text or figures (double check this, this is a very common mistake)
 - Figures or text overflowing borders or figure limits
 - Long images that do not obey the roughly 2:3 or 3:2 aspect ratio
+- Given diagram does not follow the original Python code provided, with significant amounts of missing information.

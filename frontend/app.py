@@ -16,11 +16,13 @@ load_dotenv()  # Load environment variables from .env file if present
 
 def build_interface():
     with gr.Blocks(title="ArchGen") as demo:
-        gr.Markdown("""
-        # ArchGen
-        Paste or select a PyTorch nn.Module to generate an architecture diagram.
+        gr.Markdown(
+            """
+            # ArchGen
+            Paste or select a PyTorch nn.Module to generate an architecture diagram.
 
-        """
+            <span style='color:orange; font-weight:bold;'>⚠️ Please note: Generation may take up to a few minutes depending on model and server load.</span>
+            """
         )
 
         # Persistent states for loading and results
