@@ -217,7 +217,30 @@ def extract_tikz_code(ai_msg: str) -> str:
     return ""
 
 def contains_approved(text: str) -> bool:
-    """Return True if text contains a standalone APPROVED line."""
+    """Return True if the critic indicates approval with uppercase keywords.
+
+    Rules:
+    - Case-sensitive: only match capitalized APPROVE or APPROVED as whole words.
+    - Allow punctuation or whitespace boundaries (word boundaries cover this).
+    - Avoid obvious uppercase negatives like NOT APPROVED / DISAPPROVED / DO NOT APPROVE.
+    """
     if not text:
         return False
-    return bool(re.search(r"(^|\n)APPROVED(\s|$)", text))
+
+    t = text.strip()
+
+    # Guard against explicit uppercase negatives
+    negative_patterns_cs = [
+        r"\bDISAPPROVED\b",
+        r"\bNOT\s+APPROVED\b",
+        r"\bDO\s+NOT\s+APPROVE(D)?\b",
+        r"\bDON'T\s+APPROVE(D)?\b",
+        r"\bCANNOT\s+APPROVE(D)?\b",
+        r"\bWILL\s+NOT\s+APPROVE(D)?\b",
+    ]
+    for pat in negative_patterns_cs:
+        if re.search(pat, t):
+            return False
+
+    # Positive: uppercase APPROVE or APPROVED, whole word, case-sensitive
+    return bool(re.search(r"\bAPPROVE(D)?\b", t))
