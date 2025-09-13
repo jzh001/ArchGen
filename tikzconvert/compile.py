@@ -124,6 +124,7 @@ def tikz_to_formats(tikz_source: str, formats: Iterable[str] = ("tikz", "pdf")) 
     wanted = list(dict.fromkeys(formats))  # preserve order unique
     outputs: Dict[str, bytes] = {"tikz": tikz_source.encode("utf-8")}
     need_pdf = any(f in ("pdf", "jpeg") for f in wanted)
+    log_bytes = b''
     if not need_pdf:
         return {k: v for k, v in outputs.items() if k in wanted}
 
@@ -131,7 +132,8 @@ def tikz_to_formats(tikz_source: str, formats: Iterable[str] = ("tikz", "pdf")) 
     with tempfile.TemporaryDirectory(prefix="archgen_tikz_") as td:
         with open(os.path.join(td, "main.tex"), "w", encoding="utf-8") as f:
             f.write(doc)
-        ok_pdf, pdf_path, _ = _compile_pdf(td)
+        ok_pdf, pdf_path, log_bytes = _compile_pdf(td)
+        outputs["log"] = log_bytes  # Always include log, even if PDF fails
         if ok_pdf and os.path.exists(pdf_path):
             if "pdf" in wanted:
                 outputs["pdf"] = open(pdf_path, "rb").read()
@@ -141,6 +143,6 @@ def tikz_to_formats(tikz_source: str, formats: Iterable[str] = ("tikz", "pdf")) 
                     outputs["jpeg"] = jpeg_bytes
         # else fall back silently
 
-    return {k: v for k, v in outputs.items() if k in wanted}
+    return {k: v for k, v in outputs.items() if k in wanted or k == "log"}
 
 __all__ = ["tikz_to_formats", "TikzConversionError"]

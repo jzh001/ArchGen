@@ -18,6 +18,9 @@
 3. Formatting
     - Ensure that the full TikZ code is generated, which includes begin and end document tags
     - Import all required packages
+4. Simplicity
+    - While you may be given examples using complex libraries, start with simple libraries and add features progressively. 
+    - Do not become overly ambitious, as the LaTeX compiler may not support some of the libraries in the examples, leading to compilation errors.
 
 
 Automatic Failure (Do not rely on TikZ code for this, look at the latest image provided to you from compiling TikZ, if available):

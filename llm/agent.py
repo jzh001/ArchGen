@@ -80,18 +80,15 @@ class Agent:
                 # Otherwise: model issued tool calls. First, preserve the assistant
                 # message that initiated these calls, so the subsequent turn sees
                 # the correct context (prevents repeated re-calling of tools).
-                try:
-                    messages_for_model.append(response)
-                except Exception:
-                    # As a fallback, try to coerce to a minimal assistant dict
-                    coerced = {
-                        "role": "assistant",
-                        "content": getattr(response, "content", "") or "",
-                    }
-                    # If tool_calls exist, include them for providers that inspect history
-                    if tool_calls:
-                        coerced["tool_calls"] = tool_calls
-                    messages_for_model.append(coerced)
+                # Always coerce to a minimal assistant dict to avoid provider-specific objects
+                coerced = {
+                    "role": "assistant",
+                    "content": getattr(response, "content", "") or "",
+                }
+                # If tool_calls exist, include them for providers that inspect history
+                if tool_calls:
+                    coerced["tool_calls"] = tool_calls
+                messages_for_model.append(coerced)
 
                 # Execute tools and append normalized tool messages
                 for tool_call in tool_calls:
@@ -142,6 +139,8 @@ class Agent:
                     tool_msg = {"role": "tool", "content": tool_result_text}
                     if tool_id:
                         tool_msg["tool_call_id"] = tool_id
+                    if tool_name:
+                        tool_msg["name"] = tool_name
                     messages_for_model.append(tool_msg)
 
                 iterations += 1
