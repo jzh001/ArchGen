@@ -10,7 +10,7 @@
     - Unless intended, arrows should not exceed boundaries of containers they are originating from or pointing to.
     - Do not leave too much white space around the figure after PDF compilation.
     - Place priority on evaluating images if provided, over the TikZ code.
-    - There is no need to include titles or captions, your diagram should be sufficient in providing a good overview of the provided Python code.
+    - Do not include titles or captions, your diagram should be sufficient in providing a good overview of the provided Python code.
 2. Accuracy
     - Diagram must follow the logic of the code provided as closely as possible. You may provide high level summaries if the model architecture is very complex, but it must remain accurate.
     - Diagram should present sufficient detail
@@ -18,12 +18,10 @@
 3. Formatting
     - Ensure that the full TikZ code is generated, which includes begin and end document tags
     - Import all required packages
-4. Simplicity
-    - While you may be given examples using complex libraries, start with simple libraries and add features progressively. 
-    - Do not become overly ambitious, as the LaTeX compiler may not support some of the libraries in the examples, leading to compilation errors.
 
 
-Automatic Failure (Do not rely on TikZ code for this, look at the latest image provided to you from compiling TikZ, if available):
+FOR THIS SECTION, REFER TO THE IMAGE PROVIDED ONLY (NO TIKZ CODE, ONLY VISUALS):
+If any of the following is true, it is an AUTOMATIC FAILURE.
 - Overlapping text or figures (double check this, this is a very common mistake) -> this includes overlapping text with borders of figures
 - Figures or text overflowing borders or figure limits
 - Long images that do not obey the roughly 2:3 or 3:2 aspect ratio
