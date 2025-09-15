@@ -91,69 +91,86 @@ def run(input_code: str, provider_choice: str) -> str:
         # Build cautious transformation variants for compile attempts
         variants = _make_tikz_variants(tikz_code) if tikz_code else []
 
+        compile_error_log = ""
+        last_log = ""
+        outputs = {}
+        chosen_variant = None
+        jpeg_bytes = b""
+        # If no TikZ code detected, go to critic with error indication
         if not tikz_code:
-            # No code produced—ask for a retry with explicit notice
-            msg_to_generator = (
-                "Your previous response did not include a fenced LaTeX block. "
-                "Please respond with ONLY one code fence labelled 'latex' containing the full, compilable diagram.\n\n"
-                f"Original input to depict:\n{input_code}"
+            critic_prompt = (
+                "Error: No LaTeX fenced block detected in generator response.\n\n"
+                f"Original generator response:\n{ai_msg}\n\n"
+                f"Original input to depict:\n{input_code}\n"
+                "Please provide feedback and actionable suggestions for the generator to improve."
             )
-            print("No LaTeX fenced block found in generator response; retrying.")
+            ai_msg_critic = critic_agent.invoke(critic_prompt)
+            print("[Critic]", ai_msg_critic)
+            if contains_approved(ai_msg_critic):
+                return ai_msg
+            # If not approved, loop back with critic feedback
+            msg_to_generator = (
+                "External critic feedback indicates issues remain. Please revise the diagram accordingly.\n\n"
+                + ai_msg_critic.strip() +
+                "\n\nReturn ONLY a single fenced LaTeX block (```latex ... ```)."
+            )
             max_iter += 1
             continue
 
         # 2) Try compiling to JPEG (if possible in this runtime)
-        if not compile_possible:
-            # We cannot compile here (no TeX toolchain). Return the generated TikZ
-            # as the best-effort result to avoid looping forever in Spaces.
-            print("No LaTeX toolchain detected; skipping compile/critic loop and returning TikZ source.")
-            return tikz_code
-
-        # Attempt compile over variants; accept JPEG if available; otherwise accept PDF if rasterizer missing
-        chosen_variant = None
-        outputs = {}
-        compile_error_log = ""
-        last_log = ""
-        for tag, variant_code in variants:
-            try:
-                outputs = tikz_to_formats(variant_code, formats=("jpeg", "pdf", "tikz"))
-            except Exception as e:
-                last_log = str(e)
-                outputs = {"log": last_log.encode("utf-8", errors="ignore")}
-
-            # Capture log if present
-            if "log" in outputs:
+        if compile_possible:
+            for tag, variant_code in variants:
                 try:
-                    last_log = outputs["log"].decode("utf-8", errors="replace")
-                except Exception:
-                    last_log = str(outputs["log"]) if outputs.get("log") is not None else last_log
+                    outputs = tikz_to_formats(variant_code, formats=("jpeg", "pdf", "tikz"))
+                except Exception as e:
+                    last_log = str(e)
+                    outputs = {"log": last_log.encode("utf-8", errors="ignore")}
 
-            if "jpeg" in outputs and outputs.get("jpeg"):
-                chosen_variant = (tag, variant_code)
-                break
-            # If no rasterizer is available, accept a successful PDF as success path
-            if not raster_possible and ("pdf" in outputs and outputs.get("pdf")):
-                chosen_variant = (tag, variant_code)
-                break
+                # Capture log if present
+                if "log" in outputs:
+                    try:
+                        last_log = outputs["log"].decode("utf-8", errors="replace")
+                    except Exception:
+                        last_log = str(outputs["log"]) if outputs.get("log") is not None else last_log
 
+                if "jpeg" in outputs and outputs.get("jpeg"):
+                    chosen_variant = (tag, variant_code)
+                    jpeg_bytes = outputs["jpeg"]
+                    break
+                # If no rasterizer is available, accept a successful PDF as success path
+                if not raster_possible and ("pdf" in outputs and outputs.get("pdf")):
+                    chosen_variant = (tag, variant_code)
+                    break
+
+            if not chosen_variant:
+                compile_error_log = last_log or "No detailed error log available."
+
+        # If compilation failed or not possible, go to critic with error log
         if not chosen_variant:
-            compile_error_log = last_log or "No detailed error log available."
-            # Compilation failed; ask generator to fix and include the error log
+            critic_prompt = (
+                "TikZ code failed to compile.\n\n"
+                f"TikZ source:\n{tikz_code}\n\n"
+                f"--- TikZ Compile Error Log ---\n{compile_error_log or last_log}\n\n"
+                f"Original input to depict:\n{input_code}\n"
+                "Please provide feedback and actionable suggestions for the generator to improve."
+            )
+            ai_msg_critic = critic_agent.invoke(critic_prompt)
+            print("[Critic]", ai_msg_critic)
+            if contains_approved(ai_msg_critic):
+                return tikz_code
+            # If not approved, loop back with critic feedback
             msg_to_generator = (
-                "The TikZ code failed to compile. Please correct any LaTeX/TikZ errors and return a new fenced LaTeX block.\n"
-                "Focus on syntactic correctness first (missing packages, unmatched braces, environments, math delimiters).\n\n"
-                f"Here was your last TikZ source:\n{tikz_code}\n"
-                f"\n--- TikZ Compile Error Log ---\n{compile_error_log}\n"
+                "External critic feedback indicates issues remain. Please revise the diagram accordingly.\n\n"
+                + ai_msg_critic.strip() +
+                "\n\nReturn ONLY a single fenced LaTeX block (```latex ... ```)."
             )
             max_iter += 1
-            print("TikZ code failed to compile to JPEG/PDF; asking generator to fix.")
             continue
 
         # Update tikz_code to the successfully compiled variant
         tikz_code = chosen_variant[1]
 
         # 3) We have a JPEG or at least a PDF (if rasterizer missing)
-        jpeg_bytes = outputs.get("jpeg", b"")
         jpeg_b64 = base64.b64encode(jpeg_bytes).decode("ascii") if jpeg_bytes else ""
 
         # Check aspect ratio of the image
@@ -188,15 +205,15 @@ def run(input_code: str, provider_choice: str) -> str:
             + "Original input code:\n"
             + f"{input_code}\n"
         )
-        ai_msg = critic_agent.invoke(critic_prompt, image=jpeg_b64 if jpeg_b64 else None)
-        print("[Critic]", ai_msg)
-        if contains_approved(ai_msg):
+        ai_msg_critic = critic_agent.invoke(critic_prompt, image=jpeg_b64 if jpeg_b64 else None)
+        print("[Critic]", ai_msg_critic)
+        if contains_approved(ai_msg_critic):
             return tikz_code
 
         # If critic rejected, loop back with the critic's full feedback
         msg_to_generator = (
             "External critic feedback indicates issues remain. Please revise the diagram accordingly.\n\n"
-            + ai_msg.strip() +
+            + ai_msg_critic.strip() +
             "\n\nReturn ONLY a single fenced LaTeX block (```latex ... ```)."
         )
         max_iter += 1
