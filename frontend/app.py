@@ -320,10 +320,14 @@ def build_interface():
                         return gr.update(value="No query provided.", visible=True)
                     try:
                         from vector_db.rag import perform_rag
+                        print(f"[DEBUG] RAG query initiated: {query}")  # Log the query
                         response = perform_rag(query)
-                        return gr.update(value=f"**RAG Response:**\n\n```text\n{response}\n```", visible=True)
+                        print(f"[DEBUG] RAG query response: {response}")  # Log the response
+                        return gr.update(value=f"**RAG Response:**\n\n```text\n{response}\n```", visible=True), gr.update(visible=False)
                     except Exception as e:
-                        return gr.update(value=f"Error during RAG query: {str(e)}", visible=True)
+                        print(f"[ERROR] RAG query failed: {e}")  # Log the error
+                        logs_md = f"[RAG Query]\nQuery: {query}\n\n[ERROR]\n{str(e)}"
+                        return gr.update(value=f"Error during RAG query: {str(e)}", visible=True), gr.update(value=logs_md, visible=True)
 
                 admin_password.submit(
                     check_admin_password,

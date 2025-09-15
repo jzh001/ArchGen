@@ -26,6 +26,7 @@ index = None
 def _init_vector_db():
     global VECTOR_DB_READY, VECTOR_DB_ERROR, vector_store, index
     try:
+        print("[DEBUG] Starting vector database initialization...")
         DB_CONNECTION = os.getenv("DB_CONNECTION")
         COLLECTION_NAME = "documents"
         missing_vars = []
@@ -34,6 +35,8 @@ def _init_vector_db():
         if missing_vars:
             raise EnvironmentError(f"Missing required environment variables: {', '.join(missing_vars)}")
 
+        print("[DEBUG] Environment variables loaded successfully.")
+
         # Set HuggingFace embedding model globally
         if torch.cuda.is_available():
             device = "cuda"
@@ -41,12 +44,15 @@ def _init_vector_db():
             device = "mps"
         else:
             device = "cpu"
-        print("Using device:", device)
+        print(f"[DEBUG] Using device: {device}")
+
         embed_model = HuggingFaceEmbedding(
             model_name="BAAI/bge-small-en-v1.5",
             device=device
         )
         Settings.embed_model = embed_model
+        print("[DEBUG] HuggingFace embedding model initialized.")
+
         # Explicitly disable default LLM usage to avoid OpenAI attempts
         Settings.llm = None
 
@@ -54,12 +60,16 @@ def _init_vector_db():
             postgres_connection_string=DB_CONNECTION,
             collection_name=COLLECTION_NAME
         )
+        print("[DEBUG] SupabaseVectorStore initialized.")
+
         index = VectorStoreIndex.from_vector_store(vector_store)
+        print("[DEBUG] VectorStoreIndex created successfully.")
+
         print("Connected to Supabase vector store.")
         VECTOR_DB_READY = True
     except Exception as e:
         VECTOR_DB_ERROR = str(e)
-        print(f"Error initializing Supabase vector DB: {e}")
+        print(f"[ERROR] Error initializing Supabase vector DB: {e}")
 
 # Start connection in background
 threading.Thread(target=_init_vector_db, daemon=True).start()
