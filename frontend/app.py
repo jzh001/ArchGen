@@ -40,9 +40,21 @@ CSS = """
 /* Fix for TikZ code editor */
 #code_col .ace_editor:last-of-type { height: 400px !important; min-height: 400px !important; max-height: 400px !important; }
 #logs_col { display: flex; align-items: stretch; }
-#logs_panel { flex: 1; height: 812px; min-height: 812px; max-height: 812px; overflow-y: auto; white-space: pre-wrap; background: #0b1021; color: #e5e7eb; padding: 12px; border-radius: 8px; border: 1px solid #1f2937; }
-#logs_panel a { color: #93c5fd; }
-#logs_panel code, #logs_panel pre { color: #e5e7eb; }
+#logs_panel { flex: 1; }
+#logs_panel textarea {
+    height: 812px !important;
+    min-height: 812px !important;
+    max-height: 812px !important;
+    overflow-y: auto !important;
+    white-space: pre !important; /* preserve text exactly */
+    background: #0b1021 !important;
+    color: #e5e7eb !important;
+    padding: 12px !important;
+    border-radius: 8px !important;
+    border: 1px solid #1f2937 !important;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+    font-size: 13px !important;
+}
 
 /* Ensure textarea elements also have fixed heights and scrolling */
 #code_col .gr-textbox textarea { height: 400px !important; min-height: 400px !important; max-height: 400px !important; overflow-y: auto !important; resize: none !important; }
@@ -92,7 +104,7 @@ def build_interface():
                         code = gr.Code(label="PyTorch nn.Module code", language="python", value=PRESETS["SimpleMLP"], lines=20, max_lines=20)
                         latest_tikz = gr.Code(label="Latest TikZ Code", language="latex", value="% Latest TikZ will appear here during generation", lines=20, max_lines=20)
                     with gr.Column(scale=6, elem_id="logs_col"):
-                        status = gr.Markdown(value="### Logs\nWaiting for output...", visible=True, elem_id="logs_panel")
+                        status = gr.Textbox(value="Waiting for output...", label="Log", lines=30, max_lines=40, interactive=False, elem_id="logs_panel")
 
                 # Output preview and downloads in a card
                 with gr.Column(elem_id="preview_card"):
@@ -109,7 +121,7 @@ def build_interface():
                         gr.update(),                 # latest_tikz
                         gr.update(),                 # pdf_viewer
                         None,                        # download_files
-                        gr.update(value="### Logs\nStarting generation...", visible=True),  # status
+                        gr.update(value="Starting generation...", visible=True),  # status (plain text)
                         True,                        # loading_state
                         None,                        # result_state
                         gr.update(visible=False, interactive=False),   # generate_btn
@@ -123,7 +135,7 @@ def build_interface():
                         for evt in render_graph_stream(code_text, provider_choice, want_jpeg=True):
                             if isinstance(evt, dict) and evt.get("type") == "log":
                                 log_accum.append(evt.get("text", ""))
-                                logs_md = "### Logs\n" + "\n\n".join(log_accum)
+                                logs_md = "\n\n".join(log_accum)
                                 yield (
                                     gr.update(),
                                     gr.update(),
@@ -190,39 +202,45 @@ def build_interface():
                                         html_preview = "<p>No PDF generated.</p>"
 
                                 # Final UI update: reset buttons to Generate
+                                log_accum.append(status_text)
+                                logs_md = "\n\n".join(log_accum)
                                 yield (
                                     gr.update(),
                                     html_preview,
                                     downloads,
-                                    gr.update(value=status_text, visible=True),
+                                    gr.update(value=logs_md, visible=True),
                                     False,
-                                    status_text,
+                                    logs_md,
                                     gr.update(visible=True, value="Generate", interactive=True),
                                     gr.update(visible=False, value="Stop", interactive=True)
                                 )
                                 return
                     except Exception as e:
                         print(f"[ERROR] Generation failed: {e}")
+                        log_accum.append(f"Error: {str(e)}")
+                        logs_md = "\n\n".join(log_accum)
                         yield (
                             gr.update(),
                             gr.update(),
                             None,
-                            gr.update(value=f"### Logs\nError: {str(e)}", visible=True),
+                            gr.update(value=logs_md, visible=True),
                             False,
-                            f"Error: {str(e)}",
+                            logs_md,
                             gr.update(visible=True, value="Generate", interactive=True),
                             gr.update(visible=False, value="Stop", interactive=True)
                         )
                         return
 
                     # Fallback if no final event received
+                    log_accum.append("Generation completed without final output")
+                    logs_md = "\n\n".join(log_accum)
                     yield (
                         gr.update(),
                         gr.update(),
                         None,
-                        gr.update(value="### Logs\nGeneration completed without final output", visible=True),
+                        gr.update(value=logs_md, visible=True),
                         False,
-                        "Generation completed",
+                        logs_md,
                         gr.update(visible=True, value="Generate", interactive=True),
                         gr.update(visible=False, value="Stop", interactive=True)
                     )
@@ -243,7 +261,7 @@ def build_interface():
                     from llm.workflow import stop_workflow
                     stop_workflow()
                     return (
-                        gr.update(value="### Logs\nStopping workflow...", visible=True),
+                        gr.update(value="Stopping workflow...", visible=True),
                         gr.update(visible=False, interactive=False),
                         gr.update(value="Stopping...", interactive=False, visible=True)
                     )
