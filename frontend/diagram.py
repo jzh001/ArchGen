@@ -5,8 +5,8 @@ return a JPEG raster (first page) if caller requests and conversion tools are pr
 """
 from __future__ import annotations
 
-from typing import Dict, Any
-from llm.workflow import run as llm_workflow
+from typing import Dict, Any, Generator
+from llm.workflow import run as llm_workflow, run_stream as llm_workflow_stream
 from tikzconvert import tikz_to_formats
 
 def render_graph(input_code, provider_choice, want_jpeg: bool = False) -> Dict[str, bytes]:
@@ -34,4 +34,55 @@ def render_graph(input_code, provider_choice, want_jpeg: bool = False) -> Dict[s
         outputs["jpeg"] = tikz_formats["jpeg"]
     return outputs
 
-__all__ = ["render_graph"]
+def render_graph_stream(input_code, provider_choice, want_jpeg: bool = True) -> Generator[Dict[str, Any], None, None]:
+    """Yield step-wise status logs and tikz updates, and finally compiled outputs.
+
+    Yields dict events for the UI:
+    - {"type": "log", "text": str}
+    - {"type": "tikz", "tikz": str, "stage": "generated"|"compiled"}
+    - Final: {"type": "final", "outputs": {tex/pdf/jpeg bytes present}}
+    """
+    last_tikz = ""
+    # Relay backend events directly and capture latest tikz
+    for evt in llm_workflow_stream(input_code=input_code, provider_choice=provider_choice):
+        if not isinstance(evt, dict):
+            continue
+        etype = evt.get("type")
+        if etype == "log":
+            text = evt.get("text", "")
+            # Hide verbose LaTeX compile logs in the UI
+            if text.startswith("[Compile Log]"):
+                continue
+            yield {"type": "log", "text": text}
+        elif etype == "tikz":
+            last_tikz = evt.get("tikz", last_tikz)
+            # forward along with stage if provided
+            out = {"type": "tikz", "tikz": last_tikz}
+            if "stage" in evt:
+                out["stage"] = evt["stage"]
+            yield out
+        elif etype == "final":
+            last_tikz = evt.get("tikz", last_tikz)
+        else:
+            # Unknown; ignore
+            pass
+
+    # Convert TikZ to requested formats (best-effort)
+    try:
+        fmts = ["tikz", "pdf"]
+        if want_jpeg:
+            fmts.append("jpeg")
+        conv = tikz_to_formats(last_tikz, formats=tuple(fmts)) if last_tikz else {"tikz": b"% empty"}
+    except Exception as e:
+        conv = {"tikz": (last_tikz or f"% error: {e}").encode("utf-8", errors="ignore")}
+    outputs: Dict[str, bytes] = {}
+    if "tikz" in conv:
+        outputs["tex"] = conv["tikz"]
+    if "pdf" in conv:
+        outputs["pdf"] = conv["pdf"]
+    if want_jpeg and "jpeg" in conv:
+        outputs["jpeg"] = conv["jpeg"]
+
+    yield {"type": "final", "outputs": outputs}
+
+__all__ = ["render_graph", "render_graph_stream"]

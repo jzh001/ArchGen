@@ -4,7 +4,7 @@ import gradio as gr
 import os
 import base64
 from dotenv import load_dotenv
-from frontend.diagram import render_graph
+from frontend.diagram import render_graph, render_graph_stream
 from frontend.exporters import save_outputs
 from frontend.presets import PRESETS
 from constants import LLM_OPTIONS
@@ -24,8 +24,42 @@ def get_db_status():
 def update_display(status):
     return status
 
+CSS = """
+/* Controls card */
+#controls_row { gap: 12px; }
+#controls_row .gradio-row { gap: 12px; }
+#controls_row .gradio-container { /* allow components to share the row */ }
+#gen_btn_col { display: flex; align-items: flex-end; }
+#generate_btn { width: 100%; }
+
+/* Side-by-side editor and logs */
+#code_col, #logs_col { min-height: 620px; }
+#code_col { display: flex; flex-direction: column; gap: 12px; }
+#code_col .ace_editor { height: 400px !important; min-height: 400px !important; max-height: 400px !important; overflow-y: auto !important; border: 1px solid #e5e7eb; border-radius: 8px; }
+#code_col .ace_editor .ace_scrollbar { display: block !important; }
+/* Fix for TikZ code editor */
+#code_col .ace_editor:last-of-type { height: 400px !important; min-height: 400px !important; max-height: 400px !important; }
+#logs_col { display: flex; align-items: stretch; }
+#logs_panel { flex: 1; height: 812px; min-height: 812px; max-height: 812px; overflow-y: auto; white-space: pre-wrap; background: #0b1021; color: #e5e7eb; padding: 12px; border-radius: 8px; border: 1px solid #1f2937; }
+#logs_panel a { color: #93c5fd; }
+#logs_panel code, #logs_panel pre { color: #e5e7eb; }
+
+/* Ensure textarea elements also have fixed heights and scrolling */
+#code_col .gr-textbox textarea { height: 400px !important; min-height: 400px !important; max-height: 400px !important; overflow-y: auto !important; resize: none !important; }
+#code_col .gr-code textarea { height: 400px !important; min-height: 400px !important; max-height: 400px !important; overflow-y: auto !important; resize: none !important; }
+#code_col .gr-code:last-of-type textarea { height: 400px !important; min-height: 400px !important; max-height: 400px !important; }
+
+/* Preview/download card */
+#preview_card { border: 0; border-radius: 10px; padding: 12px; background: transparent; box-shadow: none; }
+
+/* Remove white border around Downloads component */
+#downloads { border: 0 !important; background: transparent !important; box-shadow: none !important; }
+#downloads * { box-shadow: none !important; }
+#downloads .container, #downloads .wrap, #downloads .prose, #downloads .grid, #downloads .file-preview { border: 0 !important; background: transparent !important; }
+"""
+
 def build_interface():
-    with gr.Blocks(title="ArchGen") as demo:
+    with gr.Blocks(title="ArchGen", css=CSS) as demo:
         gr.Markdown(
             """
             # ArchGen
@@ -45,15 +79,25 @@ def build_interface():
 
         with gr.Tabs():
             with gr.TabItem("Generate Diagram"):
-                with gr.Row():
+                # Controls: preset & provider on one row, then the button below
+                with gr.Row(elem_id="controls_row"):
                     preset = gr.Dropdown(choices=list(PRESETS.keys()), value="SimpleMLP", label="Preset Model")
                     provider = gr.Dropdown(choices=LLM_OPTIONS, value=LLM_OPTIONS[0], label="LLM Provider")
-                code = gr.Code(label="PyTorch nn.Module code", language="python", value=PRESETS["SimpleMLP"])
-                status = gr.Markdown(visible=False)
                 with gr.Row():
-                    generate_btn = gr.Button("Generate", variant="primary")
-                pdf_viewer = gr.HTML(label="Preview (JPEG if available else PDF/TikZ)")
-                download_files = gr.File(label="Downloads (JPEG/PDF/TikZ)", file_count="multiple")
+                    generate_btn = gr.Button("Generate", variant="primary", elem_id="generate_btn")
+
+                # Side-by-side: left column (input + latest TikZ), right column (logs)
+                with gr.Row():
+                    with gr.Column(scale=6, elem_id="code_col"):
+                        code = gr.Code(label="PyTorch nn.Module code", language="python", value=PRESETS["SimpleMLP"], lines=20, max_lines=20)
+                        latest_tikz = gr.Code(label="Latest TikZ Code", language="latex", value="% Latest TikZ will appear here during generation", lines=20, max_lines=20)
+                    with gr.Column(scale=6, elem_id="logs_col"):
+                        status = gr.Markdown(value="### Logs\nWaiting for output...", visible=True, elem_id="logs_panel")
+
+                # Output preview and downloads in a card
+                with gr.Column(elem_id="preview_card"):
+                    pdf_viewer = gr.HTML(label="Preview (JPEG if available else PDF/TikZ)")
+                    download_files = gr.File(label="Downloads (JPEG/PDF/TikZ)", file_count="multiple", elem_id="downloads")
 
                 def _ensure_code(preset_choice, current_code):
                     return PRESETS[preset_choice] if preset_choice and PRESETS.get(preset_choice) else current_code
@@ -62,50 +106,63 @@ def build_interface():
                     return gr.update(visible=True, value="Loading..."), True, None
 
                 def generate(preset_choice, code_text, provider_choice):
-                    # Set loading state
-                    status_update, loading, _ = set_loading()
-                    outputs = render_graph(code_text, provider_choice, want_jpeg=True)
-                    paths = save_outputs(outputs)
-                    downloads = [p for k, p in paths.items() if k in ("jpeg", "pdf", "tex")]
-                    status_text = "Generation Complete\n"
-                    if "pdf" not in outputs:
-                        status_text += " — PDF compilation unavailable (install tectonic or pdflatex)."
-                    if paths.get("jpeg") and os.path.exists(paths["jpeg"]):
-                        try:
-                            with open(paths["jpeg"], "rb") as f:
-                                b64 = base64.b64encode(f.read()).decode()
-                            html_preview = (
-                                '<div style="text-align:center;">'
-                                f'<img src="data:image/jpeg;base64,{b64}" '
-                                'style="max-width:90%;height:auto;border:1px solid #ccc;display:inline-block;" '
-                                'alt="Diagram preview" />'
-                                '</div>'
-                            )
-                        except Exception:
-                            html_preview = "<p>Failed to load JPEG preview.</p>"
-                    elif paths.get("pdf") and os.path.exists(paths["pdf"]):
-                        try:
-                            with open(paths["pdf"], "rb") as f:
-                                b64 = base64.b64encode(f.read()).decode()
-                            html_preview = f'<iframe src="data:application/pdf;base64,{b64}" style="width:100%;height:600px;" frameborder="0"></iframe>'
-                        except Exception:
-                            html_preview = "<p>Failed to load PDF preview.</p>"
-                    else:
-                        if paths.get("tex") and os.path.exists(paths["tex"]):
-                            try:
-                                with open(paths["tex"], "r", encoding="utf-8", errors="ignore") as f:
-                                    tikz_snippet = f.read()[:2000]
-                                html_preview = (
-                                    "<p>No PDF generated. Showing first part of TikZ source:</p><pre style='white-space:pre-wrap;font-size:12px;border:1px solid #ccc;padding:8px;max-height:600px;overflow:auto;'>" +
-                                    gr.utils.sanitize_html(tikz_snippet) +
-                                    "</pre>"
-                                )
-                            except Exception:
-                                html_preview = "<p>No PDF generated.</p>"
-                        else:
-                            html_preview = "<p>No PDF generated.</p>"
-                    # Set states: loading False, result
-                    return html_preview, downloads, gr.update(value=status_text, visible=True), False, status_text
+                    # Streaming generator for Gradio
+                    log_accum = []
+                    # Relay logs
+                    for evt in render_graph_stream(code_text, provider_choice, want_jpeg=True):
+                        if isinstance(evt, dict) and evt.get("type") == "log":
+                            log_accum.append(evt.get("text", ""))
+                            logs_md = "### Logs\n" + "\n\n".join(log_accum)
+                            yield gr.update(), gr.update(), None, gr.update(value=logs_md, visible=True), True, "\n\n".join(log_accum)
+                        elif isinstance(evt, dict) and evt.get("type") == "tikz":
+                            tikz_text = evt.get("tikz", "") or "% (empty)"
+                            yield gr.update(value=tikz_text), gr.update(), None, gr.update(), True, None
+                        elif isinstance(evt, dict) and evt.get("type") == "final":
+                            outputs = evt.get("outputs", {}) or {}
+                            paths = save_outputs(outputs)
+                            downloads = [p for k, p in paths.items() if k in ("jpeg", "pdf", "tex")]
+                            status_text = "Generation Complete\n"
+                            if "pdf" not in outputs:
+                                status_text += " — PDF compilation unavailable (install tectonic or pdflatex)."
+                            # Build preview
+                            if paths.get("jpeg") and os.path.exists(paths["jpeg"]):
+                                try:
+                                    with open(paths["jpeg"], "rb") as f:
+                                        b64 = base64.b64encode(f.read()).decode()
+                                    html_preview = (
+                                        '<div style="text-align:center;">'
+                                        f'<img src="data:image/jpeg;base64,{b64}" '
+                                        'style="max-width:90%;height:auto;border:1px solid #ccc;display:inline-block;" '
+                                        'alt="Diagram preview" />'
+                                        '</div>'
+                                    )
+                                except Exception:
+                                    html_preview = "<p>Failed to load JPEG preview.</p>"
+                            elif paths.get("pdf") and os.path.exists(paths["pdf"]):
+                                try:
+                                    with open(paths["pdf"], "rb") as f:
+                                        b64 = base64.b64encode(f.read()).decode()
+                                    html_preview = f'<iframe src="data:application/pdf;base64,{b64}" style="width:100%;height:600px;" frameborder="0"></iframe>'
+                                except Exception:
+                                    html_preview = "<p>Failed to load PDF preview.</p>"
+                            else:
+                                if paths.get("tex") and os.path.exists(paths["tex"]):
+                                    try:
+                                        with open(paths["tex"], "r", encoding="utf-8", errors="ignore") as f:
+                                            tikz_snippet = f.read()[:2000]
+                                        html_preview = (
+                                            "<p>No PDF generated. Showing first part of TikZ source:</p><pre style='white-space:pre-wrap;font-size:12px;border:1px solid #ccc;padding:8px;max-height:600px;overflow:auto;'>" +
+                                            gr.utils.sanitize_html(tikz_snippet) +
+                                            "</pre>"
+                                        )
+                                    except Exception:
+                                        html_preview = "<p>No PDF generated.</p>"
+                                else:
+                                    html_preview = "<p>No PDF generated.</p>"
+
+                            # Final UI update: preview, downloads, status markdown, loading False, result text
+                            yield gr.update(), html_preview, downloads, gr.update(value=status_text, visible=True), False, status_text
+                    return
 
                 # When preset changes, update code
                 preset.change(_ensure_code, [preset, code], [code])
@@ -120,7 +177,7 @@ def build_interface():
                 generate_btn.click(
                     generate,
                     [preset, code, provider],
-                    [pdf_viewer, download_files, status, loading_state, result_state],
+                    [latest_tikz, pdf_viewer, download_files, status, loading_state, result_state],
                     queue=True
                 )
 

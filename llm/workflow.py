@@ -4,18 +4,12 @@ from tikzconvert.compile import tikz_to_formats
 import re, base64, shutil, tempfile, os
 from llm.tools import search_tikz_database
 
-def run(input_code: str, provider_choice: str) -> str:
-    """Run the generator-critic loop with rendering and self-approval.
+def run_stream(input_code: str, provider_choice: str):
+    """Stream the generator-critic loop events for the frontend.
 
-    Process:
-    - Generator produces TikZ.
-    - We attempt to compile to JPEG. If it fails, feed this back to the generator to fix.
-    - If it compiles, we ask the generator to self-assess the rendered image,
-      reworking until the generator sets approval=true.
-    - Then we pass the final JPEG (base64) to the critic for an external critique. If the critic rejects, we
-      feed back the critique to the generator and continue.
-
-    We dynamically extend MAX_ITER locally to keep looping until success (with a reasonable safety bound).
+    Yields dict events:
+    - {"type": "log", "text": str} at the end of each major step (generator/compile/critic)
+    - Final yield: {"type": "final", "tikz": str}
     """
     with open(RUBRICS_PROMPT_PATH, 'r') as f:
         rubrics = f.read()
@@ -78,15 +72,19 @@ def run(input_code: str, provider_choice: str) -> str:
     compile_possible = _latex_available()
     raster_possible = _rasterizer_available()
     if not compile_possible:
-        print("[workflow] No LaTeX engine detected in PATH. Will skip compile/critic loop and return TikZ source when produced.")
+        yield {"type": "log", "text": "[workflow] No LaTeX engine detected in PATH. Skipping compile/critic loop; will return TikZ when produced."}
 
     while iteration < max_iter and iteration < safety_ceiling:
         iteration += 1
 
         # 1) Ask generator to produce TikZ
+        yield {"type": "log", "text": f"[Generator] Requesting TikZ (iteration {iteration})..."}
         ai_msg = generator_agent.invoke(msg_to_generator, image=jpeg_b64 if jpeg_b64 else None)
-        print("[Generator]", ai_msg)
+        yield {"type": "log", "text": f"[Generator]\n{ai_msg}"}
         tikz_code = extract_tikz_code(ai_msg)
+        if tikz_code:
+            # Stream the current TikZ from generator before compile
+            yield {"type": "tikz", "tikz": tikz_code, "stage": "generated"}
 
         # Build cautious transformation variants for compile attempts
         variants = _make_tikz_variants(tikz_code) if tikz_code else []
@@ -105,9 +103,11 @@ def run(input_code: str, provider_choice: str) -> str:
                 "Please provide feedback and actionable suggestions for the generator to improve."
             )
             ai_msg_critic = critic_agent.invoke(critic_prompt)
-            print("[Critic]", ai_msg_critic)
+            yield {"type": "log", "text": f"[Critic]\n{ai_msg_critic}"}
             if contains_approved(ai_msg_critic):
-                return ai_msg
+                # Approve returning raw message if critic surprisingly approved
+                yield {"type": "final", "tikz": ai_msg}
+                return
             # If not approved, loop back with critic feedback
             msg_to_generator = (
                 "External critic feedback indicates issues remain. Please revise the diagram accordingly.\n\n"
@@ -121,6 +121,7 @@ def run(input_code: str, provider_choice: str) -> str:
         if compile_possible:
             for tag, variant_code in variants:
                 try:
+                    yield {"type": "log", "text": f"[Compile] Attempting variant '{tag}'..."}
                     outputs = tikz_to_formats(variant_code, formats=("jpeg", "pdf", "tikz"))
                 except Exception as e:
                     last_log = str(e)
@@ -132,14 +133,19 @@ def run(input_code: str, provider_choice: str) -> str:
                         last_log = outputs["log"].decode("utf-8", errors="replace")
                     except Exception:
                         last_log = str(outputs["log"]) if outputs.get("log") is not None else last_log
+                    # Truncate noisy logs for UI clarity
+                    snippet = (last_log[:2000] + "...") if len(last_log) > 2000 else last_log
+                    yield {"type": "log", "text": f"[Compile Log]\n{snippet}"}
 
                 if "jpeg" in outputs and outputs.get("jpeg"):
                     chosen_variant = (tag, variant_code)
                     jpeg_bytes = outputs["jpeg"]
+                    yield {"type": "log", "text": "[Compile] Success: JPEG produced."}
                     break
                 # If no rasterizer is available, accept a successful PDF as success path
                 if not raster_possible and ("pdf" in outputs and outputs.get("pdf")):
                     chosen_variant = (tag, variant_code)
+                    yield {"type": "log", "text": "[Compile] Success: PDF produced (no rasterizer)."}
                     break
 
             if not chosen_variant:
@@ -155,9 +161,10 @@ def run(input_code: str, provider_choice: str) -> str:
                 "Please provide feedback and actionable suggestions for the generator to improve."
             )
             ai_msg_critic = critic_agent.invoke(critic_prompt)
-            print("[Critic]", ai_msg_critic)
+            yield {"type": "log", "text": f"[Critic]\n{ai_msg_critic}"}
             if contains_approved(ai_msg_critic):
-                return tikz_code
+                yield {"type": "final", "tikz": tikz_code}
+                return
             # If not approved, loop back with critic feedback
             msg_to_generator = (
                 "External critic feedback indicates issues remain. Please revise the diagram accordingly.\n\n"
@@ -169,6 +176,8 @@ def run(input_code: str, provider_choice: str) -> str:
 
         # Update tikz_code to the successfully compiled variant
         tikz_code = chosen_variant[1]
+        # Stream the compiled-accepted TikZ variant
+        yield {"type": "tikz", "tikz": tikz_code, "stage": "compiled"}
 
         # 3) We have a JPEG or at least a PDF (if rasterizer missing)
         jpeg_b64 = base64.b64encode(jpeg_bytes).decode("ascii") if jpeg_bytes else ""
@@ -185,14 +194,20 @@ def run(input_code: str, provider_choice: str) -> str:
                     width, height = img.size
                     aspect_ratio = max(width / height, height / width)
                     if aspect_ratio > 5:
+                        yield {"type": "log", "text": f"[Quality] Extreme aspect ratio detected ({width}x{height}). Requesting generator to adjust."}
                         msg_to_generator = (
                             "The generated image has an extreme aspect ratio exceeding 5:1 or 1:5. Please adjust the TikZ code to produce a more balanced diagram.\n\n"
                             f"Last TikZ source:\n{tikz_code}\n"
                         )
                         max_iter += 1
+                        # Defer file cleanup to finally; just loop again
                         continue
             finally:
-                os.unlink(temp_jpeg_path)
+                try:
+                    if os.path.exists(temp_jpeg_path):
+                        os.unlink(temp_jpeg_path)
+                except Exception:
+                    pass
 
         # 4) Ask external Critic (with the final image)
         critic_prompt = (
@@ -206,9 +221,10 @@ def run(input_code: str, provider_choice: str) -> str:
             + f"{input_code}\n"
         )
         ai_msg_critic = critic_agent.invoke(critic_prompt, image=jpeg_b64 if jpeg_b64 else None)
-        print("[Critic]", ai_msg_critic)
+        yield {"type": "log", "text": f"[Critic]\n{ai_msg_critic}"}
         if contains_approved(ai_msg_critic):
-            return tikz_code
+            yield {"type": "final", "tikz": tikz_code}
+            return
 
         # If critic rejected, loop back with the critic's full feedback
         msg_to_generator = (
@@ -218,8 +234,21 @@ def run(input_code: str, provider_choice: str) -> str:
         )
         max_iter += 1
 
-    # If we exit the loop without approval, return the last TikZ (best effort)
-    return tikz_code
+    # If we exit the loop without approval, yield the last TikZ (best effort)
+    yield {"type": "final", "tikz": tikz_code}
+    return
+
+
+def run(input_code: str, provider_choice: str) -> str:
+    """Non-streaming wrapper that returns the final TikZ string.
+
+    Internally consumes run_stream() and ignores intermediate logs.
+    """
+    final_tikz = ""
+    for evt in run_stream(input_code=input_code, provider_choice=provider_choice):
+        if isinstance(evt, dict) and evt.get("type") == "final":
+            final_tikz = evt.get("tikz", "")
+    return final_tikz
 
 def extract_tikz_code(ai_msg: str) -> str:
     """Extract LaTeX from a ```latex fenced block (or any fenced block as fallback)."""
