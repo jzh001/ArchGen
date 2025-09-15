@@ -70,7 +70,6 @@ def build_interface():
         )
 
         db_status = gr.Markdown(value=get_db_status())
-
         db_status_state = gr.State(value=get_db_status())
 
         # Persistent states for loading and results
@@ -85,6 +84,7 @@ def build_interface():
                     provider = gr.Dropdown(choices=LLM_OPTIONS, value=LLM_OPTIONS[0], label="LLM Provider")
                 with gr.Row():
                     generate_btn = gr.Button("Generate", variant="primary", elem_id="generate_btn")
+                    stop_btn = gr.Button("Stop", variant="secondary", visible=False)
 
                 # Side-by-side: left column (input + latest TikZ), right column (logs)
                 with gr.Row():
@@ -102,94 +102,166 @@ def build_interface():
                 def _ensure_code(preset_choice, current_code):
                     return PRESETS[preset_choice] if preset_choice and PRESETS.get(preset_choice) else current_code
 
-                def set_loading():
-                    return gr.update(visible=True, value="Loading..."), True, None
-
                 def generate(preset_choice, code_text, provider_choice):
+                    print(f"[DEBUG] generate function called with preset: {preset_choice}, code length: {len(code_text) if code_text else 0}, provider: {provider_choice}")
+                    # Show Stop, hide Generate when starting
+                    yield (
+                        gr.update(),                 # latest_tikz
+                        gr.update(),                 # pdf_viewer
+                        None,                        # download_files
+                        gr.update(value="### Logs\nStarting generation...", visible=True),  # status
+                        True,                        # loading_state
+                        None,                        # result_state
+                        gr.update(visible=False, interactive=False),   # generate_btn
+                        gr.update(visible=True, value="Stop", interactive=True)  # stop_btn
+                    )
+
                     # Streaming generator for Gradio
                     log_accum = []
-                    # Relay logs
-                    for evt in render_graph_stream(code_text, provider_choice, want_jpeg=True):
-                        if isinstance(evt, dict) and evt.get("type") == "log":
-                            log_accum.append(evt.get("text", ""))
-                            logs_md = "### Logs\n" + "\n\n".join(log_accum)
-                            yield gr.update(), gr.update(), None, gr.update(value=logs_md, visible=True), True, "\n\n".join(log_accum)
-                        elif isinstance(evt, dict) and evt.get("type") == "tikz":
-                            tikz_text = evt.get("tikz", "") or "% (empty)"
-                            yield gr.update(value=tikz_text), gr.update(), None, gr.update(), True, None
-                        elif isinstance(evt, dict) and evt.get("type") == "final":
-                            outputs = evt.get("outputs", {}) or {}
-                            paths = save_outputs(outputs)
-                            downloads = [p for k, p in paths.items() if k in ("jpeg", "pdf", "tex")]
-                            status_text = "Generation Complete\n"
-                            if "pdf" not in outputs:
-                                status_text += " — PDF compilation unavailable (install tectonic or pdflatex)."
-                            # Build preview
-                            if paths.get("jpeg") and os.path.exists(paths["jpeg"]):
-                                try:
-                                    with open(paths["jpeg"], "rb") as f:
-                                        b64 = base64.b64encode(f.read()).decode()
-                                    html_preview = (
-                                        '<div style="text-align:center;">'
-                                        f'<img src="data:image/jpeg;base64,{b64}" '
-                                        'style="max-width:90%;height:auto;border:1px solid #ccc;display:inline-block;" '
-                                        'alt="Diagram preview" />'
-                                        '</div>'
-                                    )
-                                except Exception:
-                                    html_preview = "<p>Failed to load JPEG preview.</p>"
-                            elif paths.get("pdf") and os.path.exists(paths["pdf"]):
-                                try:
-                                    with open(paths["pdf"], "rb") as f:
-                                        b64 = base64.b64encode(f.read()).decode()
-                                    html_preview = f'<iframe src="data:application/pdf;base64,{b64}" style="width:100%;height:600px;" frameborder="0"></iframe>'
-                                except Exception:
-                                    html_preview = "<p>Failed to load PDF preview.</p>"
-                            else:
-                                if paths.get("tex") and os.path.exists(paths["tex"]):
+                    try:
+                        # Relay logs
+                        for evt in render_graph_stream(code_text, provider_choice, want_jpeg=True):
+                            if isinstance(evt, dict) and evt.get("type") == "log":
+                                log_accum.append(evt.get("text", ""))
+                                logs_md = "### Logs\n" + "\n\n".join(log_accum)
+                                yield (
+                                    gr.update(),
+                                    gr.update(),
+                                    None,
+                                    gr.update(value=logs_md, visible=True),
+                                    True,
+                                    "\n\n".join(log_accum),
+                                    gr.update(),  # no change to generate_btn
+                                    gr.update()   # no change to stop_btn
+                                )
+                            elif isinstance(evt, dict) and evt.get("type") == "tikz":
+                                tikz_text = evt.get("tikz", "") or "% (empty)"
+                                yield (
+                                    gr.update(value=tikz_text),
+                                    gr.update(),
+                                    None,
+                                    gr.update(),
+                                    True,
+                                    None,
+                                    gr.update(),  # no change to generate_btn
+                                    gr.update()   # no change to stop_btn
+                                )
+                            elif isinstance(evt, dict) and evt.get("type") == "final":
+                                outputs = evt.get("outputs", {}) or {}
+                                paths = save_outputs(outputs)
+                                downloads = [p for k, p in paths.items() if k in ("jpeg", "pdf", "tex")]
+                                status_text = "Generation Complete\n"
+                                if "pdf" not in outputs:
+                                    status_text += " — PDF compilation unavailable (install tectonic or pdflatex)."
+                                # Build preview
+                                if paths.get("jpeg") and os.path.exists(paths["jpeg"]):
                                     try:
-                                        with open(paths["tex"], "r", encoding="utf-8", errors="ignore") as f:
-                                            tikz_snippet = f.read()[:2000]
+                                        with open(paths["jpeg"], "rb") as f:
+                                            b64 = base64.b64encode(f.read()).decode()
                                         html_preview = (
-                                            "<p>No PDF generated. Showing first part of TikZ source:</p><pre style='white-space:pre-wrap;font-size:12px;border:1px solid #ccc;padding:8px;max-height:600px;overflow:auto;'>" +
-                                            gr.utils.sanitize_html(tikz_snippet) +
-                                            "</pre>"
+                                            '<div style="text-align:center;">'
+                                            f'<img src="data:image/jpeg;base64,{b64}" '
+                                            'style="max-width:90%;height:auto;border:1px solid #ccc;display:inline-block;" '
+                                            'alt="Diagram preview" />'
+                                            '</div>'
                                         )
                                     except Exception:
-                                        html_preview = "<p>No PDF generated.</p>"
+                                        html_preview = "<p>Failed to load JPEG preview.</p>"
+                                elif paths.get("pdf") and os.path.exists(paths["pdf"]):
+                                    try:
+                                        with open(paths["pdf"], "rb") as f:
+                                            b64 = base64.b64encode(f.read()).decode()
+                                        html_preview = f'<iframe src="data:application/pdf;base64,{b64}" style="width:100%;height:600px;" frameborder="0"></iframe>'
+                                    except Exception:
+                                        html_preview = "<p>Failed to load PDF preview.</p>"
                                 else:
-                                    html_preview = "<p>No PDF generated.</p>"
+                                    if paths.get("tex") and os.path.exists(paths["tex"]):
+                                        try:
+                                            with open(paths["tex"], "r", encoding="utf-8", errors="ignore") as f:
+                                                tikz_snippet = f.read()[:2000]
+                                            html_preview = (
+                                                "<p>No PDF generated. Showing first part of TikZ source:</p><pre style='white-space:pre-wrap;font-size:12px;border:1px solid #ccc;padding:8px;max-height:600px;overflow:auto;'>" +
+                                                gr.utils.sanitize_html(tikz_snippet) +
+                                                "</pre>"
+                                            )
+                                        except Exception:
+                                            html_preview = "<p>No PDF generated.</p>"
+                                    else:
+                                        html_preview = "<p>No PDF generated.</p>"
 
-                            # Final UI update: preview, downloads, status markdown, loading False, result text
-                            yield gr.update(), html_preview, downloads, gr.update(value=status_text, visible=True), False, status_text
-                    return
+                                # Final UI update: reset buttons to Generate
+                                yield (
+                                    gr.update(),
+                                    html_preview,
+                                    downloads,
+                                    gr.update(value=status_text, visible=True),
+                                    False,
+                                    status_text,
+                                    gr.update(visible=True, value="Generate", interactive=True),
+                                    gr.update(visible=False, value="Stop", interactive=True)
+                                )
+                                return
+                    except Exception as e:
+                        print(f"[ERROR] Generation failed: {e}")
+                        yield (
+                            gr.update(),
+                            gr.update(),
+                            None,
+                            gr.update(value=f"### Logs\nError: {str(e)}", visible=True),
+                            False,
+                            f"Error: {str(e)}",
+                            gr.update(visible=True, value="Generate", interactive=True),
+                            gr.update(visible=False, value="Stop", interactive=True)
+                        )
+                        return
+
+                    # Fallback if no final event received
+                    yield (
+                        gr.update(),
+                        gr.update(),
+                        None,
+                        gr.update(value="### Logs\nGeneration completed without final output", visible=True),
+                        False,
+                        "Generation completed",
+                        gr.update(visible=True, value="Generate", interactive=True),
+                        gr.update(visible=False, value="Stop", interactive=True)
+                    )
 
                 # When preset changes, update code
                 preset.change(_ensure_code, [preset, code], [code])
-                # When generate is clicked, set loading state, then run generate
-                # Fast UI update should not claim a queue job; avoid extra SSE stream
-                generate_btn.click(
-                    set_loading,
-                    [],
-                    [status, loading_state, result_state],
-                    queue=False
-                )
+
+                # Generate button handler (streaming)
                 generate_btn.click(
                     generate,
                     [preset, code, provider],
-                    [latest_tikz, pdf_viewer, download_files, status, loading_state, result_state],
+                    [latest_tikz, pdf_viewer, download_files, status, loading_state, result_state, generate_btn, stop_btn],
                     queue=True
                 )
 
-                # Remove status.select, as Markdown does not support .select. Status is updated only via callbacks.
+                # Stop button handler
+                def stop_generation():
+                    from llm.workflow import stop_workflow
+                    stop_workflow()
+                    return (
+                        gr.update(value="### Logs\nStopping workflow...", visible=True),
+                        gr.update(visible=False, interactive=False),
+                        gr.update(value="Stopping...", interactive=False, visible=True)
+                    )
+
+                stop_btn.click(
+                    stop_generation,
+                    inputs=[],
+                    outputs=[status, generate_btn, stop_btn],
+                    queue=False
+                )
+
+                # Remove status.select; Markdown does not support .select
 
             with gr.TabItem("Admin Dashboard"):
-                # State to track password validation
                 admin_authenticated = gr.State(False)
                 admin_password = gr.Textbox(label="Enter Admin Password", type="password", visible=True)
                 password_status = gr.Markdown(visible=False)
 
-                # All admin options are hidden until password is validated
                 with gr.Column(visible=False) as admin_panel:
                     doc_desc = gr.Textbox(label="Description", lines=2, placeholder="Describe the document...")
                     doc_tikz = gr.Textbox(label="TikZ Code", lines=8, placeholder="Paste TikZ code here...")
@@ -204,10 +276,8 @@ def build_interface():
 
                 def check_admin_password(pw):
                     if pw == os.getenv("ADMIN_PASSWORD"):
-                        # Hide password box and status, show admin panel
                         return gr.update(visible=False), gr.update(visible=False), True, gr.update(visible=True)
                     else:
-                        # Show status, keep password box visible, keep admin panel hidden
                         return gr.update(visible=True, value="Invalid password."), gr.update(visible=True), False, gr.update(visible=False)
 
                 def upload_documents(desc, tikz):
@@ -237,16 +307,15 @@ def build_interface():
                     except Exception as e:
                         return gr.update(value=f"Error during RAG query: {str(e)}", visible=True)
 
-                # Password check: reveal admin panel if correct, hide password box/status
                 admin_password.submit(
                     check_admin_password,
                     [admin_password],
                     [password_status, admin_password, admin_authenticated, admin_panel],
                 )
 
-                # Only allow upload/rag actions if authenticated
                 upload_btn.click(upload_documents, [doc_desc, doc_tikz], [upload_status])
                 rag_btn.click(test_rag_query, [rag_query], [rag_response])
+
         gr.Markdown("""
         ## Citation
         If you use ArchGen in your research or teaching, please cite:
@@ -264,13 +333,13 @@ def build_interface():
 
         ---
         ## References
-        - [NNTikZ - TikZ Diagrams for Deep Learning and Neural Networks](https://github.com/fraserlove/nntikz)  
-            Fraser Love, 2024. GitHub repository.  
+        - [NNTikZ - TikZ Diagrams for Deep Learning and Neural Networks](https://github.com/fraserlove/nntikz)  \
+            Fraser Love, 2024. GitHub repository.  \
             `@misc{love2024nntikz, author = {Fraser Love}, title = {NNTikZ - TikZ Diagrams for Deep Learning and Neural Networks}, year = 2024, url = {https://github.com/fraserlove/nntikz}, note = {GitHub repository} }`
-        - [Collection of LaTeX resources and examples](https://github.com/davidstutz/latex-resources)  
-            David Stutz, 2022. GitHub repository.  
+        - [Collection of LaTeX resources and examples](https://github.com/davidstutz/latex-resources)  \
+            David Stutz, 2022. GitHub repository.  \
             `@misc{Stutz2022, author = {David Stutz}, title = {Collection of LaTeX resources and examples}, publisher = {GitHub}, journal = {GitHub repository}, howpublished = {\\url{https://github.com/davidstutz/latex-resources}}, note = {Accessed on MM.DD.YYYY}}`
-        - [tikz.net](https://tikz.net)  
+        - [tikz.net](https://tikz.net)  \
             A collection of TikZ examples and resources.
         """)
 
@@ -279,7 +348,7 @@ def build_interface():
         timer.tick(get_db_status, [], [db_status_state])
 
         # When db status state changes, update visible markdown.
-        db_status_state.change(update_display, [db_status_state], [db_status])
+        db_status_state.change(update_display, inputs=[db_status_state], outputs=[db_status])
 
     return demo
 

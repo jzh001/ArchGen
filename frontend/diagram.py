@@ -42,6 +42,8 @@ def render_graph_stream(input_code, provider_choice, want_jpeg: bool = True) -> 
     - {"type": "tikz", "tikz": str, "stage": "generated"|"compiled"}
     - Final: {"type": "final", "outputs": {tex/pdf/jpeg bytes present}}
     """
+    print(f"[DEBUG] render_graph_stream called with input_code length: {len(input_code) if input_code else 0}, provider_choice: {provider_choice}")
+    
     last_tikz = ""
     # Relay backend events directly and capture latest tikz
     for evt in llm_workflow_stream(input_code=input_code, provider_choice=provider_choice):
