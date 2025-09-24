@@ -28,7 +28,7 @@ def perform_rag(query: str, top_k: int = 5):
         with ThreadPoolExecutor(max_workers=1) as executor:
             future = executor.submit(query_engine.query, query)
             try:
-                response = future.result(timeout=20)  # Timeout after 10 seconds
+                response = future.result(timeout=60)  # Timeout after 60 seconds
             except TimeoutError:
                 print("Error: RAG query timed out.")
                 return "Error: RAG query timed out."
