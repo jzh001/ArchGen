@@ -103,9 +103,6 @@ If you use ArchGen in your research or teaching, please cite:
     note      = {Version: latest}
 }
 ```
-
-Feel free to adapt the citation style (BibTeX/APA/MLA) to your venue's requirements. A `CITATION.cff` file can be added later for GitHub's citation panel if desired.
-
 ---
 
 ## License
